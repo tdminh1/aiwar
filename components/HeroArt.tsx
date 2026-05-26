@@ -1,8 +1,16 @@
+"use client";
+
+import type { ComponentType } from "react";
+
 // Hero art — abstract editorial illustrations for article thumbs and featured cards.
 // All return JSX SVG that fills its container.
 
-const ART = {
-  aurora: ({ palette }) => (
+type HeroArtProps = {
+  kind?: string | null;
+};
+
+const ART: Record<string, ComponentType<Record<string, never>>> = {
+  aurora: () => (
     <svg viewBox="0 0 400 280" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}}>
       <defs>
         <linearGradient id="aurora-bg" x1="0" x2="1" y1="0" y2="1">
@@ -288,7 +296,7 @@ const ART = {
   ),
 };
 
-window.HeroArt = function HeroArt({ kind }) {
-  const C = ART[kind] || ART.aurora;
+export function HeroArt({ kind }: HeroArtProps) {
+  const C = (kind ? ART[kind] : null) || ART.aurora;
   return <C />;
-};
+}

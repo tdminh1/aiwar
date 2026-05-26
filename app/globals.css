@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* AI War — Editorial homepage, content-first
    The article feed is always horizontally centered in the viewport.
    Sidebars are fixed to the sides of that centered column — they do
