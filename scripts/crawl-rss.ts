@@ -1,5 +1,8 @@
 import { XMLParser } from "fast-xml-parser";
 import { createClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
+
+config({ path: ".env.local" });
 
 type Source = {
   id: string;
