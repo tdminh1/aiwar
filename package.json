@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "seed:supabase": "tsx scripts/seed-supabase.ts",
-    "crawl:rss": "tsx scripts/crawl-rss.ts"
+    "crawl:rss": "tsx scripts/crawl-rss.ts",
+    "crawl:sources": "tsx scripts/crawl-rss.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",
+    "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
     "fast-xml-parser": "^4.5.1",
     "lucide-react": "^0.468.0",

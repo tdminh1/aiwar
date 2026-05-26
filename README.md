@@ -27,10 +27,10 @@ npm run dev -- -p 20128
 npm run seed:supabase
 ```
 
-5. Crawl configured RSS feeds:
+5. Crawl configured sources from the last two months:
 
 ```bash
-npm run crawl:rss
+npm run crawl:sources
 ```
 
 Secrets are only read on the server. The client does not receive the Supabase service role key.
