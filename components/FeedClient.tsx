@@ -117,6 +117,14 @@ function openArticle(article: Article) {
   window.open(article.url, "_blank", "noopener,noreferrer");
 }
 
+function ArticleVisual({ article }: { article: Article }) {
+  if (article.thumbnail_url) {
+    return <img src={article.thumbnail_url} alt="" loading="lazy" />;
+  }
+
+  return <HeroArt kind={article.hero_variant} />;
+}
+
 function FeaturedCard({
   article,
   sources,
@@ -131,7 +139,7 @@ function FeaturedCard({
   return (
     <article className="featured" onClick={() => openArticle(article)}>
       <div className="featured-img">
-        <HeroArt kind={article.hero_variant} />
+        <ArticleVisual article={article} />
         <span className="featured-badge">
           <span className="dot" />
           Latest
@@ -162,7 +170,7 @@ function ArticleCard({
   return (
     <article className="article-card" onClick={() => openArticle(article)}>
       <div className="article-card-img">
-        <HeroArt kind={article.hero_variant} />
+        <ArticleVisual article={article} />
       </div>
       <div className="article-card-body">
         <ArticleMeta article={article} sources={sources} categories={categories} />
@@ -198,7 +206,7 @@ function ArticleRow({
         </div>
       </div>
       <div className="article-thumb">
-        <HeroArt kind={article.hero_variant} />
+        <ArticleVisual article={article} />
       </div>
     </article>
   );

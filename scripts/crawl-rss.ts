@@ -22,6 +22,11 @@ type FeedItem = {
   updated?: string;
   author?: string;
   category?: string | string[];
+  enclosure?: unknown;
+  image?: unknown;
+  "media:content"?: unknown;
+  "media:thumbnail"?: unknown;
+  [key: string]: unknown;
 };
 
 type ArticleRow = {
@@ -32,6 +37,7 @@ type ArticleRow = {
   source_domain: string;
   author: string;
   category: string;
+  thumbnail_url: string | null;
   hero_variant: string;
   read_minutes: number;
   published_at: string;
@@ -101,6 +107,94 @@ function absoluteUrl(value: string, baseUrl: string) {
   return new URL(value, baseUrl).toString();
 }
 
+function normalizeImageUrl(value: string | null | undefined, baseUrl: string) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("data:")) return null;
+
+  try {
+    const url = new URL(trimmed, baseUrl);
+    const nested = url.searchParams.get("url");
+    if (url.pathname.includes("/_next/image") && nested) {
+      return new URL(nested, baseUrl).toString();
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function urlFromUnknown(value: unknown, baseUrl: string): string | null {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const url = urlFromUnknown(item, baseUrl);
+      if (url) return url;
+    }
+    return null;
+  }
+  if (typeof value === "string") return normalizeImageUrl(value, baseUrl);
+  if (typeof value !== "object") return null;
+
+  const record = value as Record<string, unknown>;
+  return (
+    urlFromUnknown(record.url, baseUrl) ||
+    urlFromUnknown(record.href, baseUrl) ||
+    urlFromUnknown(record.src, baseUrl)
+  );
+}
+
+function firstSrcSetUrl(srcset: string | undefined, baseUrl: string) {
+  const first = srcset?.split(",").at(-1)?.trim().split(/\s+/)[0];
+  return normalizeImageUrl(first, baseUrl);
+}
+
+function imageFromHtml(html: string | undefined, baseUrl: string) {
+  if (!html) return null;
+  const $ = load(html);
+  const image = $("img").first();
+  return (
+    normalizeImageUrl(image.attr("src"), baseUrl) ||
+    firstSrcSetUrl(image.attr("srcset"), baseUrl)
+  );
+}
+
+function imageFromFeedItem(item: FeedItem, baseUrl: string) {
+  return (
+    urlFromUnknown(item["media:thumbnail"], baseUrl) ||
+    urlFromUnknown(item["media:content"], baseUrl) ||
+    urlFromUnknown(item.enclosure, baseUrl) ||
+    urlFromUnknown(item.image, baseUrl) ||
+    imageFromHtml(item.description, baseUrl)
+  );
+}
+
+function imageFromElement($: ReturnType<typeof load>, element: ReturnType<ReturnType<typeof load>>, baseUrl: string) {
+  const image = element.find("img").first();
+  return (
+    normalizeImageUrl(image.attr("src"), baseUrl) ||
+    firstSrcSetUrl(image.attr("srcset"), baseUrl)
+  );
+}
+
+async function fetchArticleThumbnail(url: string) {
+  try {
+    const html = await fetchText(url);
+    const $ = load(html);
+    const metaImage =
+      $("meta[property='og:image']").attr("content") ||
+      $("meta[name='twitter:image']").attr("content");
+    const articleImage =
+      $("main img").first().attr("src") ||
+      $("article img").first().attr("src") ||
+      $("img").first().attr("src");
+
+    return normalizeImageUrl(metaImage || articleImage, url);
+  } catch {
+    return null;
+  }
+}
+
 function toIsoDate(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
@@ -149,6 +243,7 @@ function rowFromFeedItem(item: FeedItem, source: Source, config: SourceConfig): 
     source_domain: source.domain,
     author: item.author || source.name,
     category: normalizeCategory(`${rawCategory} ${item.title}`),
+    thumbnail_url: source.id === "deepmind" ? imageFromFeedItem(item, url) : null,
     hero_variant: config.hero,
     read_minutes: 4,
     published_at: publishedAt,
@@ -204,6 +299,10 @@ async function crawlAnthropic(source: Source, config: SourceConfig) {
     const categoryText = link.find("span").first().text().trim();
     const excerpt = link.find("p").first().text().trim();
     const url = absoluteUrl(href, config.pageUrl);
+    const container = link.closest("div");
+    const thumbnail =
+      imageFromElement($, link, config.pageUrl) ||
+      imageFromElement($, container, config.pageUrl);
 
     rows.set(url, {
       title,
@@ -213,6 +312,7 @@ async function crawlAnthropic(source: Source, config: SourceConfig) {
       source_domain: source.domain,
       author: source.name,
       category: normalizeCategory(`${categoryText} ${title}`),
+      thumbnail_url: thumbnail,
       hero_variant: config.hero,
       read_minutes: 4,
       published_at: publishedAt,
@@ -220,7 +320,14 @@ async function crawlAnthropic(source: Source, config: SourceConfig) {
     });
   });
 
-  return [...rows.values()];
+  const result = [...rows.values()];
+  for (const row of result) {
+    if (!row.thumbnail_url) {
+      row.thumbnail_url = await fetchArticleThumbnail(row.url);
+    }
+  }
+
+  return result;
 }
 
 async function crawlSource(source: Source) {

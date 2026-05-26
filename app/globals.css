@@ -460,7 +460,9 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--paper-2);
   transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.article-card-img svg { width: 100%; height: 100%; display: block; }
+.article-card-img svg,
+.article-card-img img { width: 100%; height: 100%; display: block; }
+.article-card-img img { object-fit: cover; }
 .article-card:hover .article-card-img { transform: translateY(-2px); }
 .article-card-body { display: flex; flex-direction: column; gap: 6px; }
 .article-card-title {
@@ -547,7 +549,9 @@ button { font-family: inherit; cursor: pointer; }
   overflow: hidden;
   background: var(--paper-2);
 }
-.featured-img svg { width: 100%; height: 100%; display: block; }
+.featured-img svg,
+.featured-img img { width: 100%; height: 100%; display: block; }
+.featured-img img { object-fit: cover; }
 .featured-badge {
   position: absolute;
   top: 14px;
@@ -718,7 +722,9 @@ button { font-family: inherit; cursor: pointer; }
   overflow: hidden;
   transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.article-thumb svg { width: 100%; height: 100%; display: block; }
+.article-thumb svg,
+.article-thumb img { width: 100%; height: 100%; display: block; }
+.article-thumb img { object-fit: cover; }
 .article-row:hover .article-thumb { transform: translateY(-2px); }
 
 .bookmark {
