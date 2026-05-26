@@ -5,13 +5,14 @@ import {
   Check,
   ExternalLink,
   LayoutGrid,
+  Plus,
   Rows3,
   Search,
   SearchX,
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { HeroArt } from "@/components/HeroArt";
 import type { Article, CategoryOption, FeedData, Source } from "@/lib/types";
 
@@ -27,6 +28,13 @@ type ActiveFilterPill = {
   k: string;
   label: string;
   v?: string;
+};
+
+type ReaderQuote = {
+  id: string;
+  name: string;
+  text: string;
+  t: string;
 };
 
 function timeAgo(iso: string | null, now = new Date()) {
@@ -299,128 +307,111 @@ function LeftFilters({
   );
 }
 
-function Newsletter() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+const SEED_QUOTES: ReaderQuote[] = [
+  { id: "q1", name: "mira_k", text: "Long context killed my RAG side project — and I'm not even mad.", t: "2h ago" },
+  { id: "q2", name: "devon", text: "Reading three lab blogs back to back used to take my whole morning.", t: "6h ago" },
+  { id: "q3", name: "sora.k", text: "The RSP v3 thresholds finally feel like they’re written for the world we live in.", t: "1d ago" },
+];
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+function avatarColor(name: string) {
+  const palette = ["#FF6719", "#10A37F", "#4285F4", "#D97757", "#7C3AED", "#0EA5E9"];
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return palette[hash % palette.length];
+}
+
+function QuoteWall() {
+  const [quotes, setQuotes] = useState<ReaderQuote[]>(SEED_QUOTES);
+  const [name, setName] = useState("");
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("aiwar_quotes") || "null") as ReaderQuote[] | null;
+      if (saved?.length) setQuotes(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("aiwar_quotes", JSON.stringify(quotes));
+    } catch {}
+  }, [quotes]);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatus("loading");
-    const response = await fetch("/api/subscribe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    setStatus(response.ok ? "success" : "error");
-    if (response.ok) setEmail("");
+    const quoteText = text.trim();
+    if (!quoteText) return;
+
+    const quoteName = name.trim() || "anon";
+    setQuotes([{ id: `q${Date.now()}`, name: quoteName, text: quoteText, t: "just now" }, ...quotes]);
+    setName("");
+    setText("");
+    setOpen(false);
   }
 
   return (
-    <div className="r-section newsletter">
-      <div className="nl-eyebrow">Newsletter</div>
-      <h3 className="nl-title">Get frontier lab updates in your inbox.</h3>
-      <p className="nl-sub">A compact digest for important AI research, model, and platform posts.</p>
-      {status === "success" ? (
-        <div className="nl-success">Subscribed.</div>
-      ) : (
-        <form className="nl-form" onSubmit={submit}>
+    <div className="r-section quote-wall">
+      <div className="r-head">
+        <h3 className="r-title">Reader Quotes</h3>
+        <button className="r-add" onClick={() => setOpen((value) => !value)} aria-label="Add quote">
+          {open ? <X size={12} strokeWidth={2.5} /> : <Plus size={12} strokeWidth={2.5} />}
+        </button>
+      </div>
+
+      {open ? (
+        <form className="quote-form" onSubmit={submit}>
           <input
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
+            className="quote-name"
+            type="text"
+            placeholder="Nickname"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={24}
           />
-          <button type="submit" disabled={status === "loading"}>
-            {status === "loading" ? "Saving..." : "Subscribe"}
-          </button>
+          <textarea
+            className="quote-text"
+            placeholder="Share a thought on what the labs are shipping..."
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            maxLength={180}
+            rows={3}
+          />
+          <div className="quote-form-foot">
+            <span className="quote-count">{text.length}/180</span>
+            <button type="submit" disabled={!text.trim()}>
+              Post
+            </button>
+          </div>
         </form>
-      )}
-      {status === "error" ? <div className="nl-foot">Supabase is not configured or the request failed.</div> : null}
+      ) : null}
+
+      <ul className="quote-list">
+        {quotes.map((quote) => (
+          <li key={quote.id} className="quote-item">
+            <span className="quote-avatar" style={{ background: avatarColor(quote.name) }}>
+              {quote.name.slice(0, 1).toUpperCase()}
+            </span>
+            <div>
+              <p className="quote-body">“{quote.text}”</p>
+              <div className="quote-meta">
+                <span className="quote-name-lbl">@{quote.name}</span>
+                <span className="dot-sep">·</span>
+                <span>{quote.t}</span>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-function RightDiscovery({
-  data,
-  setSearch,
-}: {
-  data: FeedData;
-  setSearch: (value: string) => void;
-}) {
+function RightDiscovery() {
   return (
     <>
-      <div className="r-section">
-        <div className="r-head">
-          <h3 className="r-title">Trending Topics</h3>
-          <span className="r-meta">Live</span>
-        </div>
-        <div className="topic-pills">
-          {data.topics.map((topic, index) => (
-            <button
-              key={topic.id}
-              className={`topic-pill ${index < 2 ? "hot" : ""}`}
-              onClick={() => setSearch(topic.name)}
-            >
-              {topic.name}
-              <span className="trend">{topic.trend_score}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="r-section">
-        <div className="r-head">
-          <h3 className="r-title">Most Read</h3>
-          <span className="r-meta">Top 5</span>
-        </div>
-        <div className="most-read">
-          {data.mostRead.map((article, index) => {
-            const source = data.sources.find((item) => item.id === article.source_id);
-            return (
-              <article key={article.id} className="mr-item" onClick={() => openArticle(article)}>
-                <span className="mr-rank">{index + 1}</span>
-                <div>
-                  <h4 className="mr-title">{article.title}</h4>
-                  <div className="mr-meta">
-                    <SourceBadge sourceId={article.source_id} sources={data.sources} size={12} />
-                    {source?.name || "Unknown"}
-                    <span className="dot-sep">·</span>
-                    {article.view_count ? `${article.view_count.toLocaleString()} views` : "popular"}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </div>
-
-      <Newsletter />
-
-      <div className="r-section">
-        <div className="r-head">
-          <h3 className="r-title">Crawl Status</h3>
-          <span className="crawl-status">
-            <span className="dot" />
-            Ready
-          </span>
-        </div>
-        <div className="crawl">
-          {data.sources.map((source) => (
-            <div className="crawl-row" key={source.id}>
-              <span className="lab">
-                <img src={sourceLogo(source)} alt="" />
-                {source.name}
-              </span>
-              <span className="time">{timeAgo(source.last_crawled_at)}</span>
-            </div>
-          ))}
-        </div>
-        <div className="crawl-foot">
-          <span>LAST CRAWL</span>
-          <span>{data.lastCrawledAt ? timeAgo(data.lastCrawledAt) : "pending"}</span>
-        </div>
-      </div>
+      <QuoteWall />
     </>
   );
 }
@@ -492,8 +483,6 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
       sort: "newest",
     });
 
-  const setSearch = (value: string) => setFilters((current) => ({ ...current, search: value }));
-
   return (
     <div className="shell">
       <div className="left-side">
@@ -507,7 +496,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
       </div>
 
       <div className="right-side">
-        <RightDiscovery data={initialData} setSearch={setSearch} />
+        <RightDiscovery />
       </div>
 
       <main className="feed-col">
@@ -654,7 +643,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
         )}
 
         <div className="mobile-aside">
-          <RightDiscovery data={initialData} setSearch={setSearch} />
+          <RightDiscovery />
         </div>
       </main>
 
