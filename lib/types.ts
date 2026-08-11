@@ -41,7 +41,22 @@ export type Article = {
 export type Topic = {
   id: string;
   name: string;
+  slug?: string | null;
+  summary?: string | null;
+  key_points?: string[] | null;
   trend_score: number;
+  updated_at?: string | null;
+  last_activity_at?: string | null;
+  created_at: string;
+};
+
+export type ReaderQuote = {
+  id: string;
+  name: string;
+  text: string;
+  profile_url: string | null;
+  profile_platform: "facebook" | "x" | "instagram" | null;
+  profile_handle: string | null;
   created_at: string;
 };
 
@@ -54,8 +69,11 @@ export type FeedData = {
   sources: Source[];
   categories: CategoryOption[];
   articles: Article[];
+  articlesTotal: number;
   topics: Topic[];
   mostRead: Article[];
+  readerQuotes: ReaderQuote[];
   lastCrawledAt: string | null;
+  renderedAt: string;
   isConfigured: boolean;
 };

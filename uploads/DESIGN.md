@@ -1,161 +1,226 @@
-# Substack — Style Reference
-> Warm editorial gateway. Like a clean, well-organized newsstand where one striking orange magazine cover catches your eye amidst a collection of white and gray.
+# AI War - Current Design System
+> Quiet editorial intelligence feed for frontier AI lab updates. The interface keeps the article column centered, moves filtering and discovery to low-noise side rails, and uses one warm orange accent to signal live status and interaction.
 
-**Theme:** light
+**Theme:** warm light editorial
 
-This design system presents a clean, content-focused experience reminiscent of a curated editorial platform, prioritizing readability and direct interaction. A single, vibrant orange accent color (#FF6719) cuts through a palette of cool grays, drawing immediate attention to calls to action and active states. Softly rounded corners (8px and 12px) for cards and inputs, contrasting with the nearly pill-shaped interactive elements (9999px), create a subtle tension between structure and approachability. The use of system fonts with custom display typography lends a familiar yet distinct voice, reinforcing its role as a platform for individual expression.
+AI War is a content-first Next.js application for tracking OpenAI, Anthropic, Google DeepMind, and related frontier AI updates. The current UI is not a marketing landing page. It opens directly into the working feed: fixed filters on the left, a centered article stream, and reader quotes on the right. On smaller screens, the sidebars collapse into a filter drawer and stacked discovery section.
 
 ## Colors
 
-| Name | Value | Role |
-|------|-------|------|
-| Orange Ember | `#FF6719` | Primary interactive elements (buttons, active states, key icons) and brand accents in marketing banners. This vivid orange provides a high-contrast focal point against the neutral palette. |
-| Midnight Graphite | `#363737` | Dominant text color for headings, body text, and primary UI elements. Provides strong contrast against white backgrounds. |
-| Anchor Gray | `#777777` | Secondary text, inactive icons, subtle borders, and placeholder text. Offers visual hierarchy without overwhelming the primary text. |
-| UI White | `#FFFFFF` | Main page background, card surfaces, and primary button backgrounds. |
-| Silver Mist | `#EEEEEE` | Subtle background for UI elements like subtle separators or hover states, providing a slight differentiation from pure white. |
-| Dark Overlay | `#232525` | Used for specific background elements, potentially indicating a grouped or highlighted section. |
-| Cool Stone | `#C8C8C8` | Borders and dividers, offering a light touch of separation. |
-| Light Steel | `#B6B6B6` | Slightly darker borders and strokes for subtle definition. |
-| Ghost Shadow | `#E6E6E6` | Background for subtle UI details, defined by `--color_theme_detail`. |
+| Token | Value | Role |
+|---|---:|---|
+| `--ember` | `#FF6719` | Primary accent for live status, hover article titles, active filter marker, active text, quote submit button, and alert/error text. |
+| `--ember-hover` | `#E85A12` | Hover state for orange buttons. |
+| `--ember-soft` | `#FFF1E8` | Active filter pill background and soft orange emphasis. |
+| `--ink` | `#2A2B2B` | Primary text, selected states, primary dark buttons, and major headings. |
+| `--ink-2` | `#363737` | Secondary strong text and article summary text. |
+| `--mute` | `#777777` | Metadata, placeholders, inactive controls, timestamps, and supporting copy. |
+| `--mute-2` | `#999999` | Low-priority counts, disabled labels, and faint metadata. |
+| `--rule` | `#EAE7E0` | Main divider and border color, intentionally warmer than neutral gray. |
+| `--rule-2` | `#F1EEE7` | Softer dividers and image placeholder backgrounds. |
+| `--paper` | `#FBFAF6` | Page background and mobile drawer background. |
+| `--paper-2` | `#F4F1E8` | Segmented controls, category chips, and media placeholders. |
+| `--white` | `#FFFFFF` | Inputs, small floating controls, quote form surface, and active segmented buttons. |
+| `--overlay` | `#1E1F1F` | Dark translucent mobile drawer overlay base. |
+| `--src-openai` | `#10A37F` | Source identity color for OpenAI. |
+| `--src-anthropic` | `#D97757` | Source identity color for Anthropic. |
+| `--src-deepmind` | `#4285F4` | Source identity color for Google DeepMind. |
 
 ## Typography
 
-### system-ui — The primary workhorse for all body text, UI labels, links, and minor headings. Its neutral, readable nature allows content to take precedence across various screen sizes. The slightly tighter line heights (1.00-1.54) optimize for dense information display on a reading-heavy platform.
-- **Substitute:** Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif
-- **Weights:** 400, 500, 600
-- **Sizes:** 12px, 13px, 15px, 19px, 20px
-- **Line height:** 1.00, 1.20, 1.33, 1.40, 1.54
+### Sans
+- **Token:** `--font-sans`
+- **Stack:** `"Sora", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`
+- **Use:** Brand-adjacent labels, article titles, detail page headings, section headers, controls, and compact UI emphasis.
+- **Weights:** 600, 700
+- **Typical sizes:** 10px, 13px, 17px, 18px, 20px, 28px, 34px, 36px, 46px
 
-### Cahuenga — Distinctive custom font for prominent headings. Its unique character at medium weight (500) sets apart primary content and section titles, giving the platform a unique, authoritative voice for 'independent voices'.
-- **Weights:** 500
-- **Sizes:** 24px, 32px
-- **Line height:** 1.24, 1.25
+### Body
+- **Token:** `--font-body`
+- **Stack:** `system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`
+- **Use:** Default page text, filters, metadata, forms, and general UI.
+- **Weights:** 400, 500, 600, 700
+- **Typical sizes:** 10px, 11px, 12px, 13px, 14px, 15px, 16px, 17px
 
-### Spectral — Serif font used for specific text blocks, often in lists or extended quotes, providing a classic editorial feel that complements the custom headings and system UI text.
-- **Substitute:** Georgia, Times New Roman, serif
+### Serif
+- **Token:** `--font-serif`
+- **Stack:** `"Spectral", Georgia, "Times New Roman", serif`
+- **Use:** Editorial excerpts, story dek text, quote body, and the brand strapline.
 - **Weights:** 400
-- **Sizes:** 19px
-- **Line height:** 1.20
+- **Typical sizes:** 13px, 14px, 15px, 16px, 18px, 21px
 
-### Jetbrains Mono — Monospaced font for code snippets or technical information, its weight and tight letter spacing at 14px distinguish it clearly from other text types, indicating different content semantics.
-- **Substitute:** Menlo, Monaco, Consolas, 'Courier New', monospace
-- **Weights:** 700
-- **Sizes:** 14px
-- **Line height:** 1.43
-- **Letter spacing:** -0.14
-
-### -apple-system-ui-serif — Another serif font, slightly larger than Spectral, potentially for specific body text sections or quotes requiring a more generous leading for emphasis. It enhances the editorial feel.
-- **Substitute:** Georgia, Times New Roman, serif
-- **Weights:** 400
-- **Sizes:** 20px
-- **Line height:** 1.60
+### Mono
+- **Token:** `--font-mono`
+- **Stack:** `"JetBrains Mono", Menlo, Monaco, Consolas, "Courier New", monospace`
+- **Use:** Operational metadata such as crawl timestamps and compact technical status.
+- **Typical sizes:** 10px, 11px
 
 ### Type Scale
 
-| Role | Size | Line Height | Letter Spacing |
-|------|------|-------------|----------------|
-| caption | 12px | 1.54 | — |
-| body | 15px | 1.4 | — |
-| subheading | 19px | 1.2 | — |
-| heading-lg | 24px | 1.25 | — |
-| display | 32px | 1.24 | — |
+| Role | Size | Line Height | Font |
+|---|---:|---:|---|
+| micro-label | 10px | 1.2 | Sans or body, uppercase with positive tracking |
+| metadata | 11-13px | 1.35-1.5 | Body |
+| body | 15px | 1.5 | Body |
+| article excerpt | 14-18px | 1.5-1.55 | Serif |
+| row title | 20px | 1.22 | Sans |
+| card title | 17px | 1.22 | Sans |
+| featured title | 36px | 1.1 | Sans |
+| detail title | 46px desktop, 34px mobile | 1.08 | Sans |
 
-## Spacing & Layout
+## Spacing And Layout
 
 **Base unit:** 4px
 
-**Density:** compact
+**Primary layout tokens**
 
-- **Section gap:** 24-32px
-- **Card padding:** 16-24px
-- **Element gap:** 4-12px
+| Token | Value | Role |
+|---|---:|---|
+| `--feed-w` | `720px` | Maximum width of the centered feed column. |
+| `--feed-half` | `360px` | Half feed width for sidebar positioning calculations. |
+| `--gap` | `64px` | Intended breathing room between feed and side rails. |
+| `--left-w` | `200px` | Fixed desktop filter rail width. |
+| `--right-w` | `280px` | Fixed desktop discovery rail width. |
 
-### Border Radius
+The `.feed-col` is always centered in the viewport with `max-width: 720px` and does not shift when sidebars appear or disappear. The left and right sidebars are `position: fixed`, pinned to viewport edges, and visually quiet: no card shell, no shadow, no panel background. Both sidebars scroll independently.
 
-- **cards:** 8px
-- **inputs:** 12px
-- **buttons:** 9999px
-- **elements:** 8px, 12px
+### Breakpoints
 
-## Components
+| Width | Behavior |
+|---:|---|
+| `> 1280px` | Left filters, centered feed, and right reader quotes are all visible. |
+| `<= 1280px` | Right sidebar is hidden; reader quotes move below the feed in `.mobile-aside`. |
+| `<= 1020px` | Left sidebar is hidden; filters open from the mobile drawer. |
+| `<= 760px` | Feed padding tightens, grid becomes one column, article thumbnails stack above text, and large titles reduce size. |
+| `<= 720px` | Detail page title and page padding reduce. |
 
-### Pill Ghost Button
-**Role:** Secondary action, subtle navigation items
+## Radius
 
-Background transparent, text #777777, border #777777, 9999px border-radius, 0px vertical padding, 8px horizontal padding. Thin, discrete, suitable for non-primary actions like 'Subscribe' buttons within content feeds.
+| Token | Value | Role |
+|---|---:|---|
+| `--r-card` | `12px` | Featured media, story media, empty states. |
+| `--r-input` | `10px` | Search input, newsletter input/button style, compact form controls. |
+| `--r-pill` | `9999px` | Filter pills, date presets, buttons, source/category chips, segmented controls. |
 
-### Rounded Ghost Button
-**Role:** Tertiary actions, filters, tags
+Additional local radii:
+- `10px` for article thumbnails and quote forms.
+- `8px` for quote inputs and success/error surfaces.
+- `4px` for small source logo marks and checkbox squares.
+- `50%` for live dots, icon buttons, and avatars.
 
-Background transparent, text #777777, border #777777, 8px border-radius, 0px vertical padding, 6px horizontal padding. More squared-off than pill, yet still deemphasized, for ancillary interactive elements.
+## Core Components
 
-### Rounded Accent Button
-**Role:** Tertiary actions, specific calls to action that need a brand highlight but not full prominence
+### Centered Feed Shell
+**Classes:** `.shell`, `.feed-col`, `.left-side`, `.right-side`
 
-Main color #FF6719, background transparent, border #FF6719, 8px border-radius, 0px vertical padding, 6px horizontal padding. Uses brand accent for emphasis while retaining a ghost style.
+The shell uses a centered reading column with fixed side rails. Sidebars are not containers around the feed; they are utility rails. This keeps the main article stream stable and readable.
 
-### Solid Primary Button
-**Role:** Primary calls to action (CTA), e.g., 'Get started', 'Create'
+### Brand Row
+**Classes:** `.brand-row`, `.brand`, `.brand-logo`, `.brand-tag`, `.brand-strap`
 
-Uses Orange Ember (#FF6719) as background, white text (#FFFFFF), with 8px border-radius. Padding varies: often 20px horizontal with 8px-12px vertical. The shadow: `rgba(255, 255, 255, 0.2) 0px 1px 0px 0px inset, rgba(0, 0, 0, 0.1) 0px -1px 0px 0px inset` provides depth. This is the most visually prominent interactive element.
+The top of the feed shows the AI War mark, a small orange `Live` indicator with a pulsing dot, and an italic serif strapline: "One feed for every frontier lab." The visible H1 is screen-reader only to avoid turning the app into a hero page.
 
-### Navigation Link Button
-**Role:** Main navigation items in the sidebar
+### Left Filters
+**Classes:** `.side-search`, `.filter-row`, `.source-toggle`, `.date-presets`, `.date-preset`
 
-Background transparent, text #777777. Has no border, 0px border-radius. Text aligns with system-ui font at 15px/400 weight.
+Filters are compact and text-forward:
+- Search field with a lucide `Search` icon.
+- Category rows with counts and a left orange marker for the active category.
+- Source checkboxes with source logos and custom square check controls.
+- Date presets as compact pills: `24h`, `7d`, `30d`, `All`.
 
-### Search Input Field
-**Role:** Global or section-specific search functionality
+Filtering is performed client-side against loaded articles. The API is only used for loading more articles.
 
-White background (#FFFFFF), text #363737, border rgba(0, 0, 0, 0.1), 12px border-radius. Padding of 0px vertical, 20px-40px horizontal to accommodate an icon. Placeholder text typically Anchor Gray (#777777) or lighter.
+### Feed Metadata And Tools
+**Classes:** `.feed-meta-row`, `.feed-meta`, `.feed-tools`, `.sort-status`, `.view-toggle`
 
-### Card Container
-**Role:** Grouping related content, e.g., 'Log in' module, 'Up next' recommendations
+The metadata row reports visible article count, loaded total, selected category, and latest update time. Sorting is currently displayed as "Newest first". The view toggle switches between list and grid using lucide `Rows3` and `LayoutGrid` icons.
 
-White background (#FFFFFF), 8px border-radius. Features a subtle shadow: `rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.06) 0px 2px 4px -1px`. Internal padding typically 16px to 24px.
+### Active Filter Pills
+**Class:** `.fp`
 
-### Media/Content Card
-**Role:** Displaying articles, videos, or other specific content items in a feed
+Active filters appear as orange-soft pills with a compact remove button. They are used for category, hidden sources, search, and date range state.
 
-No explicit border or background color different from the page background. Relies on internal content structure and surrounding whitespace for definition. Can contain nested elements like images with specific radii (e.g. 12px).
+### Featured Article
+**Classes:** `.featured`, `.featured-img`, `.featured-badge`, `.featured-title`, `.featured-excerpt`, `.read-link`
 
-## Do's and Don'ts
+In list view, the first filtered article becomes the featured item. It uses a large media slot when available, a small "Latest" badge, a 36px sans title, serif excerpt, and orange source link.
 
-### Do
-- Always use Orange Ember (#FF6719) for primary calls to action and active states to guide user focus.
-- Apply 9999px border-radius for small, interactive pill-shaped elements like 'Subscribe' or 'Like' buttons.
-- Use 8px border-radius for cards and larger interactive elements (like main CTA buttons) to maintain a soft but structured appearance.
-- Prefer Midnight Graphite (#363737) for all primary text content (headings, body) to ensure excellent readability against white backgrounds.
-- Utilize the `system-ui` font family for general UI labels and body text, keeping weights between 400 and 500 for optimal legibility.
-- Employ Cahuenga (500 weight, 24px-32px) for page and section titles to express the brand's unique editorial voice.
-- Maintain element spacing using a 4px base unit, with `elementGap` values like 4px, 8px, 12px, depending on proximity needs.
+### Article Row
+**Classes:** `.article-row`, `.article-body`, `.article-title`, `.article-excerpt`, `.article-thumb`, `.article-foot`
 
-### Don't
-- Avoid introducing additional saturated colors; maintain Orange Ember as the sole vibrant accent.
-- Do not use sharp 0px corners, as the system consistently uses 8px, 12px, or 9999px radii.
-- Do not deviate from the specified font families; `system-ui` for body, `Cahuenga` for headlines, and `Spectral`/`-apple-system-ui-serif` for editorial content.
-- Avoid overly dramatic shadows; stick to the subtle `rgba(0,0,0,0.1) 0px 4px 6px` style for card elevation only.
-- Do not use generic gray values; always pull from the defined neutral scale (Midnight Graphite, Anchor Gray, Silver Mist, Cool Stone).
-- Never use `system-ui` for prominent headings; `Cahuenga` is reserved for this purpose.
-- Do not introduce inconsistent padding values; adhere to the 4px base unit and established elementGap tokens like 4px, 8px, 12px.
+List items are divided by warm rules. Desktop rows use a two-column layout with a 160px thumbnail on the right when available. Mobile rows stack the thumbnail above the text.
 
-## Elevation
+### Article Grid Card
+**Classes:** `.feed-grid`, `.article-card`, `.article-card-img`, `.article-card-title`, `.article-card-excerpt`
 
-- **Card Container:** `rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.06) 0px 2px 4px -1px`
-- **Solid Primary Button:** `rgba(255, 255, 255, 0.2) 0px 1px 0px 0px inset, rgba(0, 0, 0, 0.1) 0px -1px 0px 0px inset`
+Grid view uses two columns on desktop and one column below 760px. Cards do not have boxed backgrounds or shadows; image, type, spacing, and hover color provide structure.
 
-## Imagery
+### Week Groups
+**Classes:** `.week-section`, `.week-toggle`
 
-The visual language blends product photography within hero sections with a focus on user-generated content in the main feed. Marketing sections feature tight crops of creative tools (pens, notebooks) or abstract graphics, often against branded orange/green gradients, contained within rounded rectangles. User content primarily includes embedded videos, profile pictures, and article thumbnails, treated without masks or heavy stylization, allowing the raw content to shine. Icons are minimal, outlined, monochromatic, and typically in Anchor Gray (#777777), reserving the Orange Ember (#FF6719) for interactive states or the brand logo element. The density is image-heavy in the main content feed, interspersed with text.
+Articles are bucketed by week. Each group has a compact uppercase label, divider line, count, and chevron. Groups can collapse without changing the visual language of the feed.
 
-## Layout
+### Reader Quotes
+**Classes:** `.quote-wall`, `.r-head`, `.r-add`, `.quote-form`, `.quote-list`, `.quote-item`, `.quote-avatar`
 
-The site uses a fixed-width, centered main content area (approximately 700-900px wide based on the screenshot, though `pageMaxWidth` is null in data, indicating flexibility) with a persistent left-hand sidebar navigation. The hero section often features a contained banner with text and an image, utilizing brand colors. The main content is structured as a single-column feed, primarily text and image blocks, while a right-hand sidebar provides 'Up Next' content recommendations and login/signup calls-to-action within distinct card components. Section rhythm is consistent, separated by whitespace, offering a spacious and readable experience.
+The right rail currently hosts Reader Quotes. Users can submit a quote with a Facebook, X, or Instagram profile URL. Existing quotes display platform avatars when available, quote text in italic serif, handle, and relative time.
 
-## Similar Brands
+### Mobile Drawer
+**Classes:** `.mobile-bar`, `.mobile-filter-btn`, `.mobile-drawer`, `.drawer-content`, `.drawer-close`
 
-- **Medium** — Shares a content-first, editorial layout with minimal UI clutter and a prominent focus on readability, along with a singular brand accent color for interactive elements.
-- **Ghost** — Emphasizes independent publishing and a clean, minimalist design with a clear reading experience. Uses subtle branding and relies on typography for voice.
-- **Blogger** — Similar focus on user-generated content and a customizable, yet default-clean, blog-like structure. UI is secondary to published content.
-- **The Verge** — Editorial content site with a strong brand identity, specific headline typefaces, and a clean layout that centers content with clear calls to action (though their accent color and density differ).
+Below 1020px, filters move into a top drawer. The drawer uses a dark translucent overlay with blur, a warm paper surface, and the same filter controls reused from desktop.
+
+### Detail Pages
+**Classes:** `.detail-shell`, `.detail-nav`, `.story-page`, `.story-header`, `.story-dek`, `.story-actions`, `.story-media`, `.story-section`, `.related-list`, `.timeline-list`
+
+Article and topic detail pages use a single centered column up to 820px. They rely on large sans titles, serif dek text, warm dividers, pill topic chips, timeline rows, and related article rows. Primary external reading actions use a dark ink button, not orange.
+
+## Interaction Rules
+
+- Article titles turn orange on hover.
+- Image thumbnails lift slightly on hover with a small translate, not a shadow.
+- Primary orange buttons darken to `--ember-hover`.
+- Selected segmented buttons use white surfaces over `--paper-2`.
+- Disabled buttons use `--rule` background and `--mute-2` text.
+- The feed does not recenter or jump when filters change height; scrollbar space is reserved globally.
+
+## Imagery And Icons
+
+The app uses real source logos and article thumbnails when available:
+- AI War brand assets live under `/public/assets`.
+- Source badges use `source.logo_path`, with `/assets/aiwar-logo-mark.png` as fallback.
+- Reader quote avatars use Facebook, X, and Instagram logo assets.
+- Article thumbnails are optional. Rows and cards have explicit no-thumbnail states.
+
+Icons come from `lucide-react` for UI controls: search, filters, check, view toggle, external link, add, close, chevron, and empty state search.
+
+## Do
+
+- Keep the feed column centered and stable.
+- Keep sidebars visually quiet and utility-focused.
+- Use `--ember` sparingly for active, live, error, and hover emphasis.
+- Use warm paper and rule colors instead of pure gray page chrome.
+- Use serif text for excerpts, quote bodies, and editorial dek copy.
+- Prefer dividers, whitespace, and type hierarchy over card shells.
+- Preserve mobile parity by reusing desktop filter controls inside the drawer.
+
+## Don't
+
+- Do not reintroduce a marketing hero as the first screen.
+- Do not wrap the feed or sidebars in decorative cards.
+- Do not use Cahuenga or other unused custom heading fonts in current UI docs.
+- Do not describe login/signup modules as active UI; they are not part of the current implemented feed.
+- Do not make the palette one-note orange; orange is an accent, while warm paper, ink, source colors, and white surfaces carry the interface.
+- Do not add heavy shadows to article cards or sidebars.
+- Do not make article cards depend on images; no-thumbnail states are first-class.
+
+## Current Screens And Data Surfaces
+
+- **Home feed:** SSR data from `getFeedData()`, rendered by `FeedClient`.
+- **Load more:** `/api/articles` paginates article rows by `published_at`.
+- **Reader quotes:** `/api/quotes` fetches and creates quote entries.
+- **Subscribe endpoint:** `/api/subscribe` exists for email upsert, but the current visible `FeedClient` surface is focused on reader quotes.
+- **Crawler:** `/api/crawl` is protected by bearer token and updates Supabase article/source/crawl data.
+- **Article detail:** `/articles/[slug]` renders source metadata, summary, key points, topics, and related updates.
+- **Topic detail:** `/topics/[slug]` renders topic summary, key points, timeline, related articles, and related topics.

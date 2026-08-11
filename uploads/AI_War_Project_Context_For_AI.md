@@ -323,19 +323,22 @@ For MVP, global search can filter the existing feed using title, excerpt, source
 
 This section describes the main runtime flow of AI War.
 
-The diagram shows how users load and filter the article feed, how Vercel Cron triggers the crawler, how articles are saved into Supabase, and how newsletter subscriptions are handled.
+The diagram shows how users load the SSR feed, filter the feed in the browser, load more articles through the API, submit reader quotes, subscribe by email, and how the protected crawler updates article data in Supabase.
 
 ### Main Components
 
 - **User**: The person using AI War in the browser.
-- **Browser / Frontend**: The client-side UI that renders the feed, filters, topics, and newsletter module.
-- **Next.js App on Vercel**: The deployed application server and frontend host.
+- **Browser / Frontend**: The client-side UI that renders the feed, filters, topics, reader quotes, and subscription form.
+- **Next.js App Router**: The deployed application server and frontend host.
+- **`getFeedData()`**: Server-side data loader used by the home page.
+- **`/api/articles`**: API route used by the browser to load more paginated articles.
+- **`/api/quotes`**: API route used to fetch and create reader quotes.
+- **`/api/subscribe`**: API route for newsletter email subscription.
 - **Vercel Cron**: The scheduled job runner that periodically calls the crawl endpoint.
 - **`/api/crawl`**: A protected Next.js API route that starts the crawl process.
-- **Crawler Module**: A backend module/function inside the Next.js app. This is not a separate microservice in the MVP.
-- **AI Lab Blogs**: External source websites such as OpenAI, Anthropic, and Google DeepMind.
-- **Supabase Postgres**: The main database for sources, articles, topics, article-topic relations, and subscribers.
-- **`/api/subscribe`**: A Next.js API route for newsletter email subscription.
+- **`runCrawler()` / Crawler Module**: Backend module inside the Next.js app. It is not a separate microservice in the MVP.
+- **AI Lab Sources**: External RSS feeds and pages such as OpenAI, Anthropic, and Google DeepMind.
+- **Supabase Postgres**: The main database for sources, articles, topics, article metrics, subscribers, reader quotes, and crawl runs.
 
 ### Mermaid Diagram
 
@@ -345,77 +348,108 @@ sequenceDiagram
 
     actor User as User
     participant Browser as Browser / Frontend
-    participant Vercel as Next.js App on Vercel
+    participant App as Next.js App Router
+    participant FeedData as getFeedData()
+    participant ArticlesAPI as /api/articles
+    participant QuotesAPI as /api/quotes
+    participant SubscribeAPI as /api/subscribe
     participant Cron as Vercel Cron
     participant CrawlAPI as /api/crawl
-    participant Crawler as Crawler Service
-    participant SourceSites as AI Lab Blogs<br/>OpenAI / Anthropic / DeepMind
+    participant Crawler as runCrawler()
+    participant SourceSites as AI Lab Sources<br/>RSS / HTML pages
     participant Supabase as Supabase Postgres
-    participant NewsletterAPI as /api/subscribe
 
-    %% Initial page load
+    %% Initial home page load
     User->>Browser: Open AI War
-    Browser->>Vercel: Request feed page
-    Vercel->>Supabase: Query articles, sources, topics
-    Supabase-->>Vercel: Return feed data
-    Vercel-->>Browser: Render page with latest articles
-    Browser-->>User: Show feed, filters, topics, newsletter box
+    Browser->>App: Request /
+    App->>FeedData: Load home feed data
+    FeedData->>Supabase: Query active sources
+    FeedData->>Supabase: Query latest articles with exact count
+    FeedData->>Supabase: Query topics by trend_score
+    FeedData->>Supabase: Query most_read_articles view
+    FeedData->>Supabase: Query latest reader_quotes
+    Supabase-->>FeedData: Return feed datasets
+    FeedData-->>App: Return FeedData
+    App-->>Browser: Render SSR page with FeedClient props
+    Browser-->>User: Show feed, filters, topics, quotes, subscription UI
 
-    %% User filters feed
-    User->>Browser: Filter by source / category / date / search
-    Browser->>Vercel: Request filtered articles
-    Vercel->>Supabase: Query articles with filters
-    Supabase-->>Vercel: Return matching articles
-    Vercel-->>Browser: Return filtered feed
+    %% Client-side feed interactions
+    User->>Browser: Filter by category / source / date / search / sort
+    Browser->>Browser: Filter and sort loaded articles in FeedClient
     Browser-->>User: Update visible articles
 
-    %% Scheduled crawling
-    Cron->>CrawlAPI: Trigger scheduled crawl
-    CrawlAPI->>CrawlAPI: Validate CRON_SECRET
+    User->>Browser: Click Load more
+    Browser->>ArticlesAPI: GET /api/articles?offset&limit
+    ArticlesAPI->>ArticlesAPI: Validate Supabase env and clamp limit
+    ArticlesAPI->>Supabase: Query articles ordered by published_at with range
+    Supabase-->>ArticlesAPI: Return articles and exact count
+    ArticlesAPI-->>Browser: Return articles, total, nextOffset, hasMore
+    Browser->>Browser: Merge new articles and remove duplicates
+    Browser-->>User: Append more feed items
 
-    alt Invalid secret
-        CrawlAPI-->>Cron: Reject request
-    else Valid secret
-        CrawlAPI->>Crawler: Start crawl job
+    %% Reader quotes
+    Browser->>QuotesAPI: GET /api/quotes
+    QuotesAPI->>Supabase: Query latest reader_quotes
+    Supabase-->>QuotesAPI: Return quote list
+    QuotesAPI-->>Browser: Return quotes
+    Browser-->>User: Refresh quote wall
 
-        loop For each active source
-            Crawler->>Supabase: Read source config
-            Supabase-->>Crawler: Return source info and last_crawled_at
-
-            Crawler->>SourceSites: Fetch latest posts
-            SourceSites-->>Crawler: Return article list / RSS / HTML
-
-            Crawler->>Crawler: Normalize article data
-            Crawler->>Supabase: Upsert articles by unique url
-            Supabase-->>Crawler: Insert new or update existing articles
-
-            Crawler->>Crawler: Extract or assign topics
-            Crawler->>Supabase: Upsert topics
-            Crawler->>Supabase: Upsert article_topics relations
-
-            Crawler->>Supabase: Update sources.last_crawled_at
-            Supabase-->>Crawler: Confirm update
-        end
-
-        Crawler-->>CrawlAPI: Crawl summary
-        CrawlAPI-->>Cron: Return success / partial success
+    User->>Browser: Submit profile URL and quote text
+    Browser->>QuotesAPI: POST /api/quotes
+    QuotesAPI->>QuotesAPI: Validate text and Facebook/X/Instagram profile URL
+    QuotesAPI->>Supabase: Insert reader quote
+    alt Quote save fails
+        Supabase-->>QuotesAPI: Return database error
+        QuotesAPI-->>Browser: Return error response
+        Browser-->>User: Show quote error
+    else Quote saved
+        Supabase-->>QuotesAPI: Return saved quote
+        QuotesAPI-->>Browser: Return quote with 201
+        Browser->>Browser: Dispatch local quote sync event
+        Browser-->>User: Add quote to quote wall
     end
 
     %% Newsletter subscription
-    User->>Browser: Enter email and click Subscribe
-    Browser->>NewsletterAPI: Submit email
-    NewsletterAPI->>NewsletterAPI: Validate email format
-    NewsletterAPI->>Supabase: Insert or upsert subscriber by unique email
-
-    alt Email already exists
-        Supabase-->>NewsletterAPI: Unique email conflict
-        NewsletterAPI-->>Browser: Return already subscribed message
-    else New subscriber
-        Supabase-->>NewsletterAPI: Subscriber saved
-        NewsletterAPI-->>Browser: Return success message
+    User->>Browser: Submit email
+    Browser->>SubscribeAPI: POST /api/subscribe
+    SubscribeAPI->>SubscribeAPI: Validate Supabase env and email format
+    SubscribeAPI->>Supabase: Upsert subscriber on unique email, ignore duplicates
+    alt Invalid email or database error
+        SubscribeAPI-->>Browser: Return 400 or 500 error
+        Browser-->>User: Show subscription error
+    else Saved or already existed
+        Supabase-->>SubscribeAPI: Upsert completed
+        SubscribeAPI-->>Browser: Return { ok: true }
+        Browser-->>User: Show subscription success
     end
 
-    Browser-->>User: Show subscription result
+    %% Scheduled crawling
+    Cron->>CrawlAPI: GET /api/crawl with bearer token
+    CrawlAPI->>CrawlAPI: Validate Authorization against CRON_SECRET
+    alt Missing or invalid secret
+        CrawlAPI-->>Cron: Return 401 Unauthorized
+    else Valid secret
+        CrawlAPI->>Crawler: Start crawl job
+        Crawler->>Crawler: Build two-month cutoff
+        Crawler->>Supabase: Query active configured sources
+        Supabase-->>Crawler: Return OpenAI / Anthropic / DeepMind sources
+
+        loop For each configured active source
+            Crawler->>Supabase: Update source feed_url from local config
+            Crawler->>SourceSites: Fetch latest posts
+            SourceSites-->>Crawler: Return article list / RSS / HTML
+
+            Crawler->>Crawler: Normalize title, excerpt, URL, category, thumbnail, dates
+            Crawler->>Crawler: Drop old articles and dedupe by URL
+            Crawler->>Supabase: Upsert articles by unique url
+            Supabase-->>Crawler: Insert or update article rows
+            Crawler->>Supabase: Update sources.last_crawled_at
+            Crawler->>Supabase: Insert crawl_runs success or error row
+        end
+
+        Crawler-->>CrawlAPI: Crawl summary
+        CrawlAPI-->>Cron: Return { ok: true, summary }
+    end
 ```
 
 ---

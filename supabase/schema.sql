@@ -50,9 +50,30 @@ create index if not exists articles_search_idx on articles using gin (
 create table if not exists topics (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
+  slug text unique,
+  summary text,
+  key_points jsonb,
   trend_score integer not null default 0,
+  updated_at timestamptz not null default now(),
+  last_activity_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+alter table topics add column if not exists slug text unique;
+alter table topics add column if not exists summary text;
+alter table topics add column if not exists key_points jsonb;
+alter table topics add column if not exists updated_at timestamptz not null default now();
+alter table topics add column if not exists last_activity_at timestamptz;
+
+create table if not exists article_topics (
+  article_id uuid not null references articles(id) on delete cascade,
+  topic_id uuid not null references topics(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (article_id, topic_id)
+);
+
+create index if not exists topics_slug_idx on topics(slug);
+create index if not exists article_topics_topic_id_idx on article_topics(topic_id);
 
 create table if not exists article_metrics (
   article_id uuid primary key references articles(id) on delete cascade,
@@ -66,6 +87,25 @@ create table if not exists subscribers (
   subscribed_at timestamptz not null default now()
 );
 
+create table if not exists reader_quotes (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  text text not null,
+  profile_url text,
+  profile_platform text check (profile_platform in ('facebook', 'x', 'instagram')),
+  profile_handle text,
+  created_at timestamptz not null default now(),
+  constraint reader_quotes_name_length check (char_length(name) between 1 and 24),
+  constraint reader_quotes_profile_handle_length check (profile_handle is null or char_length(profile_handle) between 1 and 32),
+  constraint reader_quotes_text_length check (char_length(text) between 1 and 180)
+);
+
+alter table reader_quotes add column if not exists profile_url text;
+alter table reader_quotes add column if not exists profile_platform text;
+alter table reader_quotes add column if not exists profile_handle text;
+
+create index if not exists reader_quotes_created_at_idx on reader_quotes(created_at desc);
+
 create table if not exists crawl_runs (
   id uuid primary key default gen_random_uuid(),
   source_id text references sources(id) on delete set null,
@@ -77,6 +117,18 @@ create table if not exists crawl_runs (
   error_message text
 );
 
+-- Browser clients authenticate through Supabase Auth, but all application data
+-- is served by protected Next.js routes. Keep direct anon/authenticated access
+-- closed even if the default Supabase grants change.
+alter table sources enable row level security;
+alter table articles enable row level security;
+alter table topics enable row level security;
+alter table article_topics enable row level security;
+alter table article_metrics enable row level security;
+alter table subscribers enable row level security;
+alter table reader_quotes enable row level security;
+alter table crawl_runs enable row level security;
+
 create or replace view most_read_articles as
 select
   a.*,
@@ -84,3 +136,7 @@ select
 from articles a
 left join article_metrics m on m.article_id = a.id
 order by coalesce(m.view_count, 0) desc, a.published_at desc nulls last;
+
+alter view most_read_articles set (security_invoker = true);
+revoke all on table most_read_articles from public, anon, authenticated;
+grant select on table most_read_articles to service_role;

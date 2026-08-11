@@ -16,6 +16,11 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 
 const now = new Date();
 const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 3600 * 1000).toISOString();
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
 const sources = [
   {
@@ -158,12 +163,60 @@ const articles = [
 ];
 
 const topics = [
-  { name: "Reasoning", trend_score: 94 },
-  { name: "Agents", trend_score: 87 },
-  { name: "Multimodality", trend_score: 76 },
-  { name: "Interpretability", trend_score: 62 },
-  { name: "Open weights", trend_score: 58 },
-  { name: "Long context", trend_score: 47 },
+  {
+    name: "Reasoning",
+    trend_score: 94,
+    summary: "Reasoning model launches, evaluations, coding performance, and deployment updates tracked across frontier AI labs.",
+    key_points: ["Model releases with stronger multi-step reasoning", "Coding and math benchmarks", "API and product availability changes"],
+  },
+  {
+    name: "Agents",
+    trend_score: 87,
+    summary: "Agentic AI updates, tool use, computer use, workflow automation, and developer agent releases from frontier labs.",
+    key_points: ["Tool-use capabilities", "Developer workflow automation", "Safety controls for autonomous systems"],
+  },
+  {
+    name: "Multimodality",
+    trend_score: 76,
+    summary: "Model updates spanning text, image, audio, video, and other multimodal inputs or outputs.",
+    key_points: ["Cross-modal model capabilities", "Product surfaces for media generation", "Research and safety notes"],
+  },
+  {
+    name: "Interpretability",
+    trend_score: 62,
+    summary: "Research and safety updates on understanding frontier model internals, evaluations, and monitoring.",
+    key_points: ["Mechanistic interpretability research", "Capability and risk evaluations", "Safety monitoring techniques"],
+  },
+  {
+    name: "Open weights",
+    trend_score: 58,
+    summary: "Open-weight model releases, licensing changes, ecosystem adoption, and benchmark results.",
+    key_points: ["Open model availability", "License and deployment details", "Community and enterprise adoption"],
+  },
+  {
+    name: "Long context",
+    trend_score: 47,
+    summary: "Long-context model updates, retrieval workflows, context-window changes, and benchmark signals.",
+    key_points: ["Context window expansions", "Retrieval and memory workflows", "Developer API implications"],
+  },
+].map((topic) => ({ ...topic, slug: slugify(topic.name), last_activity_at: now.toISOString() }));
+
+const readerQuotes = [
+  {
+    name: "mira_k",
+    text: "Long context killed my RAG side project — and I'm not even mad.",
+    created_at: hoursAgo(2),
+  },
+  {
+    name: "devon",
+    text: "Reading three lab blogs back to back used to take my whole morning.",
+    created_at: hoursAgo(6),
+  },
+  {
+    name: "sora.k",
+    text: "The RSP v3 thresholds finally feel like they’re written for the world we live in.",
+    created_at: hoursAgo(24),
+  },
 ];
 
 async function main() {
@@ -187,7 +240,25 @@ async function main() {
   const { error: metricError } = await supabase.from("article_metrics").upsert(metrics, { onConflict: "article_id" });
   if (metricError) throw metricError;
 
-  console.log(`Seeded ${sources.length} sources, ${articles.length} articles, and ${topics.length} topics.`);
+  const { data: existingQuotes, error: existingQuoteError } = await supabase
+    .from("reader_quotes")
+    .select("name, text")
+    .in(
+      "text",
+      readerQuotes.map((quote) => quote.text),
+    );
+  if (existingQuoteError) throw existingQuoteError;
+
+  const existingQuoteKeys = new Set((existingQuotes ?? []).map((quote) => `${quote.name}:${quote.text}`));
+  const newReaderQuotes = readerQuotes.filter((quote) => !existingQuoteKeys.has(`${quote.name}:${quote.text}`));
+  if (newReaderQuotes.length) {
+    const { error: quoteError } = await supabase.from("reader_quotes").insert(newReaderQuotes);
+    if (quoteError) throw quoteError;
+  }
+
+  console.log(
+    `Seeded ${sources.length} sources, ${articles.length} articles, ${topics.length} topics, and ${newReaderQuotes.length} reader quotes.`,
+  );
 }
 
 main().catch((error) => {

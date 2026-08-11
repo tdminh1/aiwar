@@ -1,10 +1,32 @@
-import { FeedClient } from "@/components/FeedClient";
-import { getFeedData } from "@/lib/feed";
+import type { Metadata } from "next";
+import { LandingPage } from "@/components/LandingPage";
+import { absoluteUrl, organizationJsonLd, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Frontier AI intelligence, without the noise",
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+};
 
-export default async function Home() {
-  const feedData = await getFeedData();
+export default function Home() {
+  const structuredData = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: absoluteUrl("/"),
+      description: SITE_DESCRIPTION,
+    },
+    organizationJsonLd(),
+  ];
 
-  return <FeedClient initialData={feedData} />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }}
+      />
+      <LandingPage />
+    </>
+  );
 }

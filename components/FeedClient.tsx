@@ -3,6 +3,7 @@
 import {
   ArrowDownNarrowWide,
   Check,
+  ChevronDown,
   ExternalLink,
   LayoutGrid,
   Plus,
@@ -12,9 +13,12 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { HeroArt } from "@/components/HeroArt";
-import type { Article, CategoryOption, FeedData, Source } from "@/lib/types";
+import { SafeImage } from "@/components/SafeImage";
+import { loginPathForCurrentPage } from "@/lib/auth-utils";
+import { articlePath } from "@/lib/routing";
+import type { Article, CategoryOption, FeedData, ReaderQuote, Source } from "@/lib/types";
 
 type Filters = {
   category: string;
@@ -30,12 +34,25 @@ type ActiveFilterPill = {
   v?: string;
 };
 
-type ReaderQuote = {
-  id: string;
-  name: string;
-  text: string;
-  t: string;
+type WeekGroup = {
+  key: string;
+  label: string;
+  articles: Article[];
 };
+
+type StoredFeedState = {
+  filters: Filters;
+  view: "list" | "grid";
+  collapsedWeeks: Record<string, boolean>;
+};
+
+const FEED_STATE_KEY = "aiwar.feed-state.v1";
+
+function redirectExpiredSession(response: Response) {
+  if (response.status !== 401) return false;
+  window.location.assign(loginPathForCurrentPage());
+  return true;
+}
 
 function timeAgo(iso: string | null, now = new Date()) {
   if (!iso) return "unknown";
@@ -49,21 +66,52 @@ function timeAgo(iso: string | null, now = new Date()) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function dayBucket(iso: string | null, now = new Date()) {
-  if (!iso) return "Undated";
-  const t = new Date(iso);
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const y = new Date(today);
-  y.setDate(y.getDate() - 1);
-  const w = new Date(today);
-  w.setDate(w.getDate() - 7);
-  const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
-  if (d.getTime() === today.getTime()) return "Today";
-  if (d.getTime() === y.getTime()) return "Yesterday";
-  if (d.getTime() > w.getTime()) return "This week";
-  return "Earlier";
+function weekStart(date: Date) {
+  const out = new Date(date);
+  out.setHours(0, 0, 0, 0);
+  const day = out.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  out.setDate(out.getDate() + diff);
+  return out;
+}
+
+function formatWeekDate(date: Date) {
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function weekBucket(iso: string | null, now = new Date()) {
+  if (!iso) return { key: "undated", label: "Undated" };
+
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return { key: "undated", label: "Undated" };
+
+  const start = weekStart(date);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const currentWeekStart = weekStart(now);
+  const previousWeekStart = new Date(currentWeekStart);
+  previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+
+  let label = `${formatWeekDate(start)} - ${formatWeekDate(end)}`;
+  if (start.getFullYear() !== now.getFullYear() || end.getFullYear() !== now.getFullYear()) {
+    label += `, ${end.getFullYear()}`;
+  }
+  if (start.getTime() === currentWeekStart.getTime()) label = "This week";
+  if (start.getTime() === previousWeekStart.getTime()) label = "Last week";
+
+  return {
+    key: start.toISOString().slice(0, 10),
+    label,
+  };
+}
+
+function isWithinLastHours(iso: string | null, now: Date, hours: number) {
+  if (!iso) return false;
+
+  const value = new Date(iso);
+  if (Number.isNaN(value.getTime())) return false;
+
+  return value.getTime() >= now.getTime() - hours * 3600 * 1000 && value.getTime() <= now.getTime();
 }
 
 function sourceLogo(source: Source | undefined) {
@@ -85,10 +133,12 @@ function ArticleMeta({
   article,
   sources,
   categories,
+  now,
 }: {
   article: Article;
   sources: Source[];
   categories: CategoryOption[];
+  now: Date;
 }) {
   const source = sources.find((item) => item.id === article.source_id);
   const category = categories.find((item) => item.id === article.category);
@@ -100,7 +150,7 @@ function ArticleMeta({
         {source?.name || "Unknown source"}
       </span>
       <span className="dot-sep">·</span>
-      <span>{timeAgo(article.published_at)}</span>
+      <span>{timeAgo(article.published_at, now)}</span>
       {category ? (
         <>
           <span className="dot-sep">·</span>
@@ -113,48 +163,67 @@ function ArticleMeta({
   );
 }
 
-function openArticle(article: Article) {
-  window.open(article.url, "_blank", "noopener,noreferrer");
-}
-
-function ArticleVisual({ article }: { article: Article }) {
-  if (article.thumbnail_url) {
-    return <img src={article.thumbnail_url} alt="" loading="lazy" />;
-  }
-
-  return <HeroArt kind={article.hero_variant} />;
-}
-
-function FeaturedCard({
+function FeaturedArticleItem({
   article,
   sources,
   categories,
+  now,
 }: {
   article: Article;
   sources: Source[];
   categories: CategoryOption[];
+  now: Date;
 }) {
-  const source = sources.find((item) => item.id === article.source_id);
+  return (
+    <Link className={`featured-item ${article.thumbnail_url ? "" : "no-thumb"}`} href={articlePath(article)}>
+      <div className="featured-item-body">
+        <ArticleMeta article={article} sources={sources} categories={categories} now={now} />
+        <h2 className="featured-title">{article.title}</h2>
+        {article.excerpt ? <p className="featured-excerpt">{article.excerpt}</p> : null}
+      </div>
+      {article.thumbnail_url ? (
+        <div className="featured-thumb">
+          <SafeImage src={article.thumbnail_url} loading="lazy" />
+        </div>
+      ) : null}
+    </Link>
+  );
+}
+
+function FeaturedSection({
+  articles,
+  sources,
+  categories,
+  now,
+}: {
+  articles: Article[];
+  sources: Source[];
+  categories: CategoryOption[];
+  now: Date;
+}) {
+  if (!articles.length) return null;
 
   return (
-    <article className="featured" onClick={() => openArticle(article)}>
-      <div className="featured-img">
-        <ArticleVisual article={article} />
-        <span className="featured-badge">
+    <section className="featured-section" aria-label="Last 24 hours">
+      <div className="featured-head">
+        <span className="featured-label">
           <span className="dot" />
-          Latest
+          Last 24h
         </span>
+        <span className="featured-count">{articles.length}</span>
       </div>
-      <div className="featured-body">
-        <ArticleMeta article={article} sources={sources} categories={categories} />
-        <h2 className="featured-title">{article.title}</h2>
-        <p className="featured-excerpt">{article.excerpt}</p>
-        <span className="read-link">
-          Read on {source?.domain || article.source_domain || "source"}
-          <ExternalLink size={14} strokeWidth={2.5} />
-        </span>
+      <div className="featured-list">
+        {articles.map((article) => (
+          <FeaturedArticleItem
+            key={article.id}
+            article={article}
+            sources={sources}
+            categories={categories}
+            now={now}
+          />
+        ))}
       </div>
-    </article>
+    </section>
   );
 }
 
@@ -162,22 +231,26 @@ function ArticleCard({
   article,
   sources,
   categories,
+  now,
 }: {
   article: Article;
   sources: Source[];
   categories: CategoryOption[];
+  now: Date;
 }) {
   return (
-    <article className="article-card" onClick={() => openArticle(article)}>
-      <div className="article-card-img">
-        <ArticleVisual article={article} />
-      </div>
+    <Link className={`article-card ${article.thumbnail_url ? "" : "no-thumb"}`} href={articlePath(article)}>
+      {article.thumbnail_url ? (
+        <div className="article-card-img">
+          <SafeImage src={article.thumbnail_url} loading="lazy" />
+        </div>
+      ) : null}
       <div className="article-card-body">
-        <ArticleMeta article={article} sources={sources} categories={categories} />
+        <ArticleMeta article={article} sources={sources} categories={categories} now={now} />
         <h3 className="article-card-title">{article.title}</h3>
         <p className="article-card-excerpt">{article.excerpt}</p>
       </div>
-    </article>
+    </Link>
   );
 }
 
@@ -185,17 +258,19 @@ function ArticleRow({
   article,
   sources,
   categories,
+  now,
 }: {
   article: Article;
   sources: Source[];
   categories: CategoryOption[];
+  now: Date;
 }) {
   const source = sources.find((item) => item.id === article.source_id);
 
   return (
-    <article className="article-row" onClick={() => openArticle(article)}>
+    <Link className={`article-row ${article.thumbnail_url ? "" : "no-thumb"}`} href={articlePath(article)}>
       <div className="article-body">
-        <ArticleMeta article={article} sources={sources} categories={categories} />
+        <ArticleMeta article={article} sources={sources} categories={categories} now={now} />
         <h3 className="article-title">{article.title}</h3>
         <p className="article-excerpt">{article.excerpt}</p>
         <div className="article-foot">
@@ -205,10 +280,12 @@ function ArticleRow({
           </span>
         </div>
       </div>
-      <div className="article-thumb">
-        <ArticleVisual article={article} />
-      </div>
-    </article>
+      {article.thumbnail_url ? (
+        <div className="article-thumb">
+          <SafeImage src={article.thumbnail_url} loading="lazy" />
+        </div>
+      ) : null}
+    </Link>
   );
 }
 
@@ -316,47 +393,127 @@ function LeftFilters({
 }
 
 const SEED_QUOTES: ReaderQuote[] = [
-  { id: "q1", name: "mira_k", text: "Long context killed my RAG side project — and I'm not even mad.", t: "2h ago" },
-  { id: "q2", name: "devon", text: "Reading three lab blogs back to back used to take my whole morning.", t: "6h ago" },
-  { id: "q3", name: "sora.k", text: "The RSP v3 thresholds finally feel like they’re written for the world we live in.", t: "1d ago" },
+  {
+    id: "q1",
+    name: "mira_k",
+    text: "Long context killed my RAG side project — and I'm not even mad.",
+    profile_url: null,
+    profile_platform: null,
+    profile_handle: null,
+    created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: "q2",
+    name: "devon",
+    text: "Reading three lab blogs back to back used to take my whole morning.",
+    profile_url: null,
+    profile_platform: null,
+    profile_handle: null,
+    created_at: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+  },
+  {
+    id: "q3",
+    name: "sora.k",
+    text: "The RSP v3 thresholds finally feel like they’re written for the world we live in.",
+    profile_url: null,
+    profile_platform: null,
+    profile_handle: null,
+    created_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+  },
 ];
 
-function avatarColor(name: string) {
-  const palette = ["#FF6719", "#10A37F", "#4285F4", "#D97757", "#7C3AED", "#0EA5E9"];
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return palette[hash % palette.length];
+const QUOTES_EVENT = "aiwar_quotes_updated";
+const LOAD_MORE_LIMIT = 40;
+
+function platformLogo(platform: ReaderQuote["profile_platform"]) {
+  if (platform === "facebook") return "/assets/facebook-logo.jpg";
+  if (platform === "instagram") return "/assets/instagram-logo.jpeg";
+  if (platform === "x") return "/assets/x-logo.png";
+  return null;
 }
 
-function QuoteWall() {
-  const [quotes, setQuotes] = useState<ReaderQuote[]>(SEED_QUOTES);
-  const [name, setName] = useState("");
+function quoteHandle(quote: ReaderQuote) {
+  return quote.profile_handle || quote.name || "anon";
+}
+
+function QuoteWall({
+  initialQuotes,
+  isConfigured,
+  now,
+}: {
+  initialQuotes: ReaderQuote[];
+  isConfigured: boolean;
+  now: Date;
+}) {
+  const [quotes, setQuotes] = useState<ReaderQuote[]>(initialQuotes.length ? initialQuotes : SEED_QUOTES);
+  const [profileUrl, setProfileUrl] = useState("");
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("aiwar_quotes") || "null") as ReaderQuote[] | null;
-      if (saved?.length) setQuotes(saved);
-    } catch {}
+    if (!isConfigured) return;
+
+    let cancelled = false;
+    async function loadLatestQuotes() {
+      try {
+        const response = await fetch("/api/quotes", { cache: "no-store" });
+        if (redirectExpiredSession(response)) return;
+        const payload = (await response.json().catch(() => null)) as { quotes?: ReaderQuote[] } | null;
+        if (!cancelled && response.ok && payload?.quotes?.length) {
+          setQuotes(payload.quotes);
+        }
+      } catch {}
+    }
+
+    loadLatestQuotes();
+    return () => {
+      cancelled = true;
+    };
+  }, [isConfigured]);
+
+  useEffect(() => {
+    function syncQuotes(event: Event) {
+      const quote = (event as CustomEvent<ReaderQuote>).detail;
+      if (quote) setQuotes((items) => [quote, ...items.filter((item) => item.id !== quote.id)].slice(0, 20));
+    }
+
+    window.addEventListener(QUOTES_EVENT, syncQuotes);
+    return () => window.removeEventListener(QUOTES_EVENT, syncQuotes);
   }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("aiwar_quotes", JSON.stringify(quotes));
-    } catch {}
-  }, [quotes]);
-
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const quoteText = text.trim();
-    if (!quoteText) return;
+    const profile = profileUrl.trim();
+    if (!quoteText || !profile || isSaving) return;
 
-    const quoteName = name.trim() || "anon";
-    setQuotes([{ id: `q${Date.now()}`, name: quoteName, text: quoteText, t: "just now" }, ...quotes]);
-    setName("");
-    setText("");
-    setOpen(false);
+    setIsSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileUrl: profile, text: quoteText }),
+      });
+      if (redirectExpiredSession(response)) return;
+      const payload = (await response.json().catch(() => null)) as { quote?: ReaderQuote; error?: string } | null;
+
+      if (!response.ok || !payload?.quote) {
+        throw new Error(payload?.error || "Could not save quote.");
+      }
+
+      setProfileUrl("");
+      setText("");
+      setOpen(false);
+      window.dispatchEvent(new CustomEvent<ReaderQuote>(QUOTES_EVENT, { detail: payload.quote }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save quote.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -372,11 +529,11 @@ function QuoteWall() {
         <form className="quote-form" onSubmit={submit}>
           <input
             className="quote-name"
-            type="text"
-            placeholder="Nickname"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={24}
+            type="url"
+            placeholder="Facebook, X, or Instagram profile URL"
+            value={profileUrl}
+            onChange={(event) => setProfileUrl(event.target.value)}
+            maxLength={160}
           />
           <textarea
             className="quote-text"
@@ -387,9 +544,9 @@ function QuoteWall() {
             rows={3}
           />
           <div className="quote-form-foot">
-            <span className="quote-count">{text.length}/180</span>
-            <button type="submit" disabled={!text.trim()}>
-              Post
+            <span className="quote-count">{error || (!isConfigured ? "Supabase unavailable" : `${text.length}/180`)}</span>
+            <button type="submit" disabled={!text.trim() || !profileUrl.trim() || isSaving || !isConfigured}>
+              {isSaving ? "Saving" : "Post"}
             </button>
           </div>
         </form>
@@ -398,15 +555,25 @@ function QuoteWall() {
       <ul className="quote-list">
         {quotes.map((quote) => (
           <li key={quote.id} className="quote-item">
-            <span className="quote-avatar" style={{ background: avatarColor(quote.name) }}>
-              {quote.name.slice(0, 1).toUpperCase()}
+            <span className={`quote-avatar ${quote.profile_platform || "legacy"}`}>
+              {platformLogo(quote.profile_platform) ? (
+                <img src={platformLogo(quote.profile_platform) || ""} alt={quote.profile_platform || ""} />
+              ) : (
+                "@"
+              )}
             </span>
             <div>
               <p className="quote-body">“{quote.text}”</p>
               <div className="quote-meta">
-                <span className="quote-name-lbl">@{quote.name}</span>
+                {quote.profile_url ? (
+                  <a className="quote-name-lbl" href={quote.profile_url} target="_blank" rel="noopener noreferrer">
+                    @{quoteHandle(quote)}
+                  </a>
+                ) : (
+                  <span className="quote-name-lbl">@{quoteHandle(quote)}</span>
+                )}
                 <span className="dot-sep">·</span>
-                <span>{quote.t}</span>
+                <span>{timeAgo(quote.created_at, now)}</span>
               </div>
             </div>
           </li>
@@ -416,17 +583,32 @@ function QuoteWall() {
   );
 }
 
-function RightDiscovery() {
+function RightDiscovery({
+  initialQuotes,
+  isConfigured,
+  now,
+}: {
+  initialQuotes: ReaderQuote[];
+  isConfigured: boolean;
+  now: Date;
+}) {
   return (
     <>
-      <QuoteWall />
+      <QuoteWall initialQuotes={initialQuotes} isConfigured={isConfigured} now={now} />
     </>
   );
 }
 
 export function FeedClient({ initialData }: { initialData: FeedData }) {
+  const initialNow = useMemo(() => new Date(initialData.renderedAt), [initialData.renderedAt]);
+  const [articles, setArticles] = useState<Article[]>(initialData.articles);
+  const [articlesTotal, setArticlesTotal] = useState(initialData.articlesTotal);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
+  const [collapsedWeeks, setCollapsedWeeks] = useState<Record<string, boolean>>({});
   const [view, setView] = useState<"list" | "grid">("list");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [hasRestoredFeedState, setHasRestoredFeedState] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     category: "all",
     sources: initialData.sources.map((source) => source.id),
@@ -435,8 +617,58 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
     sort: "newest",
   });
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const raw = window.sessionStorage.getItem(FEED_STATE_KEY);
+        if (!raw) return;
+
+        const stored = JSON.parse(raw) as Partial<StoredFeedState>;
+        const storedFilters = stored.filters;
+        const availableSources = new Set(initialData.sources.map((source) => source.id));
+
+        if (storedFilters) {
+          const sources = Array.isArray(storedFilters.sources)
+            ? storedFilters.sources.filter((source) => availableSources.has(source))
+            : initialData.sources.map((source) => source.id);
+          const datePreset = ["24h", "7d", "30d", "all"].includes(storedFilters.datePreset)
+            ? storedFilters.datePreset
+            : "all";
+          const sort = ["newest", "popular"].includes(storedFilters.sort) ? storedFilters.sort : "newest";
+          const category = initialData.categories.find((item) => item.id === storedFilters.category)?.id || "all";
+
+          setFilters({
+            category,
+            sources,
+            search: typeof storedFilters.search === "string" ? storedFilters.search.slice(0, 160) : "",
+            datePreset,
+            sort,
+          });
+        }
+        if (stored.view === "list" || stored.view === "grid") setView(stored.view);
+        if (stored.collapsedWeeks && typeof stored.collapsedWeeks === "object") {
+          setCollapsedWeeks(
+            Object.fromEntries(Object.entries(stored.collapsedWeeks).filter(([, value]) => typeof value === "boolean")),
+          );
+        }
+      } catch {
+        window.sessionStorage.removeItem(FEED_STATE_KEY);
+      } finally {
+        setHasRestoredFeedState(true);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialData.categories, initialData.sources]);
+
+  useEffect(() => {
+    if (!hasRestoredFeedState) return;
+    const state: StoredFeedState = { filters, view, collapsedWeeks };
+    window.sessionStorage.setItem(FEED_STATE_KEY, JSON.stringify(state));
+  }, [collapsedWeeks, filters, hasRestoredFeedState, view]);
+
   const filtered = useMemo(() => {
-    let list = initialData.articles.slice();
+    let list = articles.slice();
     if (filters.category !== "all") list = list.filter((article) => article.category === filters.category);
     list = list.filter((article) => filters.sources.includes(article.source_id));
     if (filters.search.trim()) {
@@ -451,7 +683,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
     }
     const presets = { "24h": 24, "7d": 24 * 7, "30d": 24 * 30 };
     if (filters.datePreset !== "all") {
-      const cutoff = Date.now() - presets[filters.datePreset] * 3600 * 1000;
+      const cutoff = initialNow.getTime() - presets[filters.datePreset] * 3600 * 1000;
       list = list.filter((article) => article.published_at && new Date(article.published_at).getTime() >= cutoff);
     }
     list.sort((a, b) => {
@@ -459,10 +691,25 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
       return new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime();
     });
     return list;
-  }, [filters, initialData.articles]);
+  }, [filters, articles, initialNow]);
 
-  const featured = filtered[0];
-  const rest = filtered.slice(1);
+  const featuredArticles = filtered.filter((article) => isWithinLastHours(article.published_at, initialNow, 24));
+  const featuredIds = new Set(featuredArticles.map((article) => article.id));
+  const rest = filtered.filter((article) => !featuredIds.has(article.id));
+  const hasMoreArticles = articles.length < articlesTotal;
+  const displayedArticles = view === "grid" ? filtered : rest;
+  const weekGroups = useMemo(() => {
+    const groups = new Map<string, WeekGroup>();
+
+    displayedArticles.forEach((article) => {
+      const bucket = weekBucket(article.published_at, initialNow);
+      const group = groups.get(bucket.key) || { key: bucket.key, label: bucket.label, articles: [] };
+      group.articles.push(article);
+      groups.set(bucket.key, group);
+    });
+
+    return [...groups.values()];
+  }, [displayedArticles, initialNow]);
   const activeFilterPills: ActiveFilterPill[] = [];
   const selectedCategory = initialData.categories.find((category) => category.id === filters.category);
   if (filters.category !== "all" && selectedCategory) activeFilterPills.push({ k: "category", label: selectedCategory.name });
@@ -491,30 +738,75 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
       sort: "newest",
     });
 
+  function toggleWeek(key: string) {
+    setCollapsedWeeks((items) => ({ ...items, [key]: !items[key] }));
+  }
+
+  async function loadMoreArticles() {
+    if (isLoadingMore || !hasMoreArticles) return;
+
+    setIsLoadingMore(true);
+    setLoadMoreError("");
+
+    try {
+      const params = new URLSearchParams({
+        offset: String(articles.length),
+        limit: String(LOAD_MORE_LIMIT),
+      });
+      const response = await fetch(`/api/articles?${params}`, { cache: "no-store" });
+      if (redirectExpiredSession(response)) return;
+      const payload = (await response.json().catch(() => null)) as {
+        articles?: Article[];
+        total?: number;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !payload?.articles) {
+        throw new Error(payload?.error || "Could not load articles.");
+      }
+
+      setArticles((items) => {
+        const seen = new Set(items.map((article) => article.id));
+        return [...items, ...payload.articles!.filter((article) => !seen.has(article.id))];
+      });
+      if (typeof payload.total === "number") setArticlesTotal(payload.total);
+    } catch (error) {
+      setLoadMoreError(error instanceof Error ? error.message : "Could not load articles.");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }
+
   return (
-    <div className="shell">
-      <div className="left-side">
-        <LeftFilters
-          filters={filters}
-          setFilters={setFilters}
-          sources={initialData.sources}
-          categories={initialData.categories}
-          articles={initialData.articles}
-        />
-      </div>
+    <div className="shell feed-private-shell">
+      <div className="feed-shell">
+        <aside className="left-side">
+          <LeftFilters
+            filters={filters}
+            setFilters={setFilters}
+            sources={initialData.sources}
+            categories={initialData.categories}
+            articles={articles}
+          />
+        </aside>
 
-      <div className="right-side">
-        <RightDiscovery />
-      </div>
+        <aside className="right-side">
+          <RightDiscovery
+            initialQuotes={initialData.readerQuotes}
+            isConfigured={initialData.isConfigured}
+            now={initialNow}
+          />
+        </aside>
 
-      <main className="feed-col">
-        <div className="brand-row">
-          <a className="brand" href="#">
-            <img src="/assets/aiwar-logo-mark.png" alt="AI War" className="brand-logo" />
-            <span className="brand-tag">Live</span>
-          </a>
-          <span className="brand-strap">One feed for every frontier lab.</span>
+        <main className="feed-col">
+        <div className="brand-row feed-brand-row">
+          <span>
+            <strong>Intelligence feed</strong>
+            <small>One feed for every frontier lab.</small>
+          </span>
+          <span className="brand-tag">Live</span>
         </div>
+        <h1 className="sr-only">AI War - live frontier AI lab news, research, safety, and product updates</h1>
 
         <div className="mobile-bar">
           <button className="mobile-filter-btn" onClick={() => setDrawerOpen(true)}>
@@ -554,6 +846,9 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
         <div className="feed-meta-row">
           <div className="feed-meta">
             <span className="strong">{filtered.length}</span> articles
+            {filters.category === "all" && !filters.search && filters.datePreset === "all" ? (
+              <span className="loaded-count">loaded of {articlesTotal}</span>
+            ) : null}
             {filters.category !== "all" && selectedCategory ? (
               <span>
                 {" "}
@@ -561,10 +856,10 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
               </span>
             ) : null}
             <span className="dot-sep">·</span>
-            <span>updated {timeAgo(initialData.lastCrawledAt || featured?.published_at || null)}</span>
+            <span>updated {timeAgo(initialData.lastCrawledAt || filtered[0]?.published_at || null, initialNow)}</span>
           </div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 14 }}>
-            <span style={{ fontSize: 12, color: "var(--mute)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <div className="feed-tools">
+            <span className="sort-status">
               <ArrowDownNarrowWide size={12} />
               Newest first
             </span>
@@ -603,57 +898,75 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
           </div>
         ) : (
           <>
-            {view === "list" && featured ? (
-              <FeaturedCard article={featured} sources={initialData.sources} categories={initialData.categories} />
+            {view === "list" ? (
+              <FeaturedSection
+                articles={featuredArticles}
+                sources={initialData.sources}
+                categories={initialData.categories}
+                now={initialNow}
+              />
             ) : null}
             <div className={view === "grid" ? "feed-grid-wrap" : "feed-list"}>
-              {Object.entries(
-                (view === "grid" ? filtered : rest).reduce<Record<string, Article[]>>((groups, article) => {
-                  const bucket = dayBucket(article.published_at);
-                  groups[bucket] = groups[bucket] || [];
-                  groups[bucket].push(article);
-                  return groups;
-                }, {}),
-              ).map(([bucket, items]) => (
-                <div key={bucket}>
-                  <div className="day-divider">
-                    <span className="label">{bucket}</span>
-                    <span className="line" />
-                    <span className="label" style={{ color: "var(--mute-2)" }}>
-                      {items.length}
-                    </span>
-                  </div>
-                  {view === "grid" ? (
-                    <div className="feed-grid">
-                      {items.map((article) => (
-                        <ArticleCard
-                          key={article.id}
-                          article={article}
-                          sources={initialData.sources}
-                          categories={initialData.categories}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    items.map((article) => (
-                      <ArticleRow
-                        key={article.id}
-                        article={article}
-                        sources={initialData.sources}
-                        categories={initialData.categories}
-                      />
-                    ))
-                  )}
-                </div>
-              ))}
+              {weekGroups.map((group) => {
+                const collapsed = Boolean(collapsedWeeks[group.key]);
+
+                return (
+                  <section key={group.key} className={`week-section ${collapsed ? "collapsed" : ""}`}>
+                    <button className="week-toggle" onClick={() => toggleWeek(group.key)} aria-expanded={!collapsed}>
+                      <span className="label">{group.label}</span>
+                      <span className="line" />
+                      <span className="count">{group.articles.length}</span>
+                      <ChevronDown size={14} className="chev" />
+                    </button>
+                    {!collapsed ? (
+                      view === "grid" ? (
+                        <div className="feed-grid">
+                          {group.articles.map((article) => (
+                            <ArticleCard
+                              key={article.id}
+                              article={article}
+                              sources={initialData.sources}
+                              categories={initialData.categories}
+                              now={initialNow}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        group.articles.map((article) => (
+                          <ArticleRow
+                            key={article.id}
+                            article={article}
+                            sources={initialData.sources}
+                            categories={initialData.categories}
+                            now={initialNow}
+                          />
+                        ))
+                      )
+                    ) : null}
+                  </section>
+                );
+              })}
             </div>
+            {hasMoreArticles ? (
+              <div className="load-more-wrap">
+                <button className="btn load-more-btn" onClick={loadMoreArticles} disabled={isLoadingMore}>
+                  {isLoadingMore ? "Loading..." : `Load ${Math.min(LOAD_MORE_LIMIT, articlesTotal - articles.length)} more`}
+                </button>
+                {loadMoreError ? <p className="load-more-error">{loadMoreError}</p> : null}
+              </div>
+            ) : null}
           </>
         )}
 
         <div className="mobile-aside">
-          <RightDiscovery />
+          <RightDiscovery
+            initialQuotes={initialData.readerQuotes}
+            isConfigured={initialData.isConfigured}
+            now={initialNow}
+          />
         </div>
-      </main>
+        </main>
+      </div>
 
       {drawerOpen ? (
         <div
@@ -672,7 +985,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
               setFilters={setFilters}
               sources={initialData.sources}
               categories={initialData.categories}
-              articles={initialData.articles}
+              articles={articles}
             />
             <button
               className="btn"
