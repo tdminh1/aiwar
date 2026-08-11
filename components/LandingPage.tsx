@@ -2,6 +2,7 @@
 
 import { ArrowRight, Check, LockKeyhole, Radar, ScanSearch, Zap } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 import { Grid } from "@/components/canvasui/Grid/Grid";
 
 const MONITOR_ROWS = [
@@ -17,6 +18,18 @@ const SOURCES = [
 ];
 
 export function LandingPage() {
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const errorCode = query.get("error_code") || fragment.get("error_code");
+    if (!errorCode) return;
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    const loginUrl = new URL("/login", siteUrl);
+    loginUrl.searchParams.set("error", errorCode === "otp_expired" ? "reset_link_invalid" : "confirmation_failed");
+    window.location.replace(loginUrl.toString());
+  }, []);
+
   return (
     <main className="public-landing">
       <header className="landing-nav">

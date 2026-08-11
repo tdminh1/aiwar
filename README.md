@@ -47,9 +47,13 @@ For email confirmation, add these Supabase Auth redirect URLs:
 
 ```text
 http://localhost:3003/auth/callback
+http://localhost:3003/auth/recovery
 http://localhost:20128/auth/callback
+http://localhost:20128/auth/recovery
 https://www.aiwar.site/auth/callback
+https://www.aiwar.site/auth/recovery
 https://aiwar-six.vercel.app/auth/callback
+https://aiwar-six.vercel.app/auth/recovery
 ```
 
 ## Scheduled Crawling

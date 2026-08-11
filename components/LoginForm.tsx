@@ -31,8 +31,12 @@ export function LoginForm() {
     return safeNextPath(searchParams.get("next"));
   }, [searchParams]);
 
-  function callbackUrl(next: string) {
-    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  function confirmationCallbackUrl() {
+    return `${window.location.origin}/auth/callback`;
+  }
+
+  function recoveryCallbackUrl() {
+    return `${window.location.origin}/auth/recovery`;
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -58,7 +62,7 @@ export function LoginForm() {
 
       if (mode === "forgot") {
         const { error: authError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: callbackUrl("/reset-password"),
+          redirectTo: recoveryCallbackUrl(),
         });
         if (authError) throw authError;
         setMessage("Password reset email sent. Open the link in that email to continue.");
@@ -68,7 +72,7 @@ export function LoginForm() {
       const { data, error: authError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { emailRedirectTo: callbackUrl(nextPath) },
+        options: { emailRedirectTo: confirmationCallbackUrl() },
       });
       if (authError) throw authError;
       if (data.session) {
@@ -97,7 +101,7 @@ export function LoginForm() {
       const { error: authError } = await createSupabaseBrowserClient().auth.resend({
         type: "signup",
         email: email.trim(),
-        options: { emailRedirectTo: callbackUrl(nextPath) },
+        options: { emailRedirectTo: confirmationCallbackUrl() },
       });
       if (authError) throw authError;
       setMessage("A new confirmation email has been sent.");
