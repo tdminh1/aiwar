@@ -74,16 +74,33 @@ npm run crawl:sources
 
 The right rail's quote wall shows recent tweets crawled from a configured list of X (Twitter) handles — [`lib/x-quotes-config.ts`](./lib/x-quotes-config.ts), edit that list any time, no other code changes needed. It replaces the earlier reader-submitted quote wall (`reader_quotes` data is kept, just no longer read or written by the app).
 
-Set `X_BEARER_TOKEN` (an X API v2 app-only bearer token) alongside `CRON_SECRET`. `/api/crawl-x-quotes` uses the same bearer-token contract as `/api/crawl`:
+Set `X_BEARER_TOKEN` (an X API v2 app-only bearer token) alongside `CRON_SECRET`. `GET /api/crawl-x-quotes` uses the same bearer-token contract as `/api/crawl`:
 
 ```bash
-curl -X POST "https://your-deployment/api/crawl-x-quotes" \
+curl -X GET "https://your-deployment/api/crawl-x-quotes" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
 Each run resolves the configured handles to X user IDs in one call, then fetches each handle's latest original tweets (retweets and replies excluded) and upserts them into `x_quotes` by `tweet_id` — safe to re-run, never duplicates. One handle failing (suspended, renamed, rate-limited) does not block the others.
 
 `vercel.json` registers a daily Vercel Cron Job for this route (`0 7 * * *`, 07:00 UTC) — chosen to stay well within paid X API plans' rate limits. Adjust the schedule (`vercel crons add --path /api/crawl-x-quotes --schedule "..."`, or edit `vercel.json` and redeploy) if your plan allows more or needs less.
+
+### Adding a tweet manually
+
+`POST /api/crawl-x-quotes` (same bearer token) adds or refreshes one tweet by URL through X's free, unauthenticated oEmbed endpoint — no `X_BEARER_TOKEN` or API credits required, so it works even while the crawl above is rate-limited or out of credits. It also doubles as a way to pin a specific tweet the configured handle list wouldn't otherwise surface.
+
+```bash
+curl -X POST "https://your-deployment/api/crawl-x-quotes" \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://x.com/handle/status/1234567890"}'
+```
+
+Or locally, without needing the deployment or `CRON_SECRET` at all:
+
+```bash
+npm run add:x-quote -- https://x.com/handle/status/1234567890
+```
 
 ## Weekly AI Digest
 

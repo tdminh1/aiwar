@@ -1,11 +1,14 @@
 import "server-only";
 
+import { load } from "cheerio";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
 import { X_QUOTE_HANDLES } from "@/lib/x-quotes-config";
 
 const X_API_BASE = "https://api.x.com/2";
+const OEMBED_URL = "https://publish.twitter.com/oembed";
 const FETCH_TIMEOUT_MS = 12_000;
 const TWEETS_PER_HANDLE = 5;
+const TWEET_URL_PATTERN = /(?:twitter\.com|x\.com)\/([A-Za-z0-9_]+)\/status(?:es)?\/(\d+)/i;
 
 type XApiUser = {
   id: string;
@@ -127,7 +130,7 @@ export async function runXQuotesCrawl() {
 
         if (rows.length > 0) {
           const { error } = await supabase.from("x_quotes").upsert(rows, { onConflict: "tweet_id" });
-          if (error) throw error;
+          if (error) throw new Error(error.message);
         }
 
         return { handle, status: "success", found: rows.length, saved: rows.length };
@@ -143,4 +146,81 @@ export async function runXQuotesCrawl() {
     found: summaries.reduce((total, item) => total + item.found, 0),
     saved: summaries.reduce((total, item) => total + item.saved, 0),
   };
+}
+
+export type ManualXQuoteResult = {
+  tweetId: string;
+  authorHandle: string;
+};
+
+function parseTweetUrl(url: string) {
+  const match = url.match(TWEET_URL_PATTERN);
+  if (!match) return null;
+  return { handle: match[1], tweetId: match[2] };
+}
+
+// X's oEmbed markup (used to progressively render the widget without JS)
+// is a <blockquote> with the tweet text in the first <p> and a trailing
+// <a> permalink whose visible text is the human-readable post date —
+// e.g. "<blockquote><p>text</p>&mdash; Name (@handle) <a href="...">Sep 5, 2026</a></blockquote>".
+function parseOEmbedHtml(html: string | undefined) {
+  if (!html) return { text: null, postedAt: null };
+
+  const $ = load(html);
+  const text = $("blockquote p").first().text().replace(/\s+/g, " ").trim() || null;
+  const dateText = $("blockquote a").last().text().trim();
+  const parsedDate = dateText ? new Date(dateText) : null;
+  const postedAt = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : null;
+
+  return { text, postedAt };
+}
+
+/**
+ * Adds (or refreshes) a single tweet by URL using X's free, unauthenticated
+ * oEmbed endpoint — no X_BEARER_TOKEN or API credits required. Useful as a
+ * manual fallback while the crawl (runXQuotesCrawl) is unavailable, or to
+ * pin a specific tweet the configured handle list wouldn't otherwise surface.
+ */
+export async function addXQuoteFromUrl(url: string): Promise<ManualXQuoteResult> {
+  if (!hasSupabaseServerEnv()) {
+    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
+  }
+
+  const parsed = parseTweetUrl(url);
+  if (!parsed) {
+    throw new Error("Could not parse a tweet URL. Expected something like https://x.com/handle/status/1234567890.");
+  }
+
+  const response = await fetch(`${OEMBED_URL}?url=${encodeURIComponent(url)}&omit_script=true`, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `X oEmbed request failed with status ${response.status}. Check the tweet URL is correct and public.`,
+    );
+  }
+
+  const oembed = (await response.json()) as { html?: string; author_name?: string };
+  const { text, postedAt } = parseOEmbedHtml(oembed.html);
+  if (!text) {
+    throw new Error("Could not read the tweet text from X. The tweet may be deleted, private, or the account protected.");
+  }
+
+  const supabase = createSupabaseServerClient();
+  const { error } = await supabase.from("x_quotes").upsert(
+    {
+      tweet_id: parsed.tweetId,
+      author_handle: parsed.handle,
+      author_name: oembed.author_name ?? null,
+      author_avatar_url: null,
+      text,
+      tweet_url: `https://x.com/${parsed.handle}/status/${parsed.tweetId}`,
+      posted_at: postedAt,
+      crawled_at: new Date().toISOString(),
+    } satisfies XQuoteRow,
+    { onConflict: "tweet_id" },
+  );
+  if (error) throw new Error(error.message);
+
+  return { tweetId: parsed.tweetId, authorHandle: parsed.handle };
 }

@@ -10,7 +10,8 @@
     "seed:supabase": "tsx scripts/seed-supabase.ts",
     "crawl:rss": "tsx scripts/crawl-rss.ts",
     "crawl:sources": "tsx scripts/crawl-rss.ts",
-    "backfill:thumbnails": "tsx scripts/crawl-rss.ts --backfill-thumbnails"
+    "backfill:thumbnails": "tsx scripts/crawl-rss.ts --backfill-thumbnails",
+    "add:x-quote": "tsx scripts/add-x-quote.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
