@@ -69,3 +69,16 @@ Run the crawler manually with:
 ```bash
 npm run crawl:sources
 ```
+
+## Weekly AI Digest
+
+`/api/digest/generate` summarizes everything crawled in the most recently completed ISO week (Mon-Sun, UTC) into one `weekly_digests` row, grouped by category. It is grounded strictly in that week's crawled articles — see [`docs/weekly-ai-digest-plan.md`](./docs/weekly-ai-digest-plan.md) for the full feature scope.
+
+Set `ANTHROPIC_API_KEY` alongside `CRON_SECRET`. The route uses the same bearer-token contract as `/api/crawl`:
+
+```bash
+curl -X POST "https://your-deployment/api/digest/generate" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Add a weekly call to the same external scheduler used for `/api/crawl` (e.g. Monday mornings, after that week's articles have been crawled). To (re)generate a specific past week instead of the most recently completed one, pass `?week_start=YYYY-MM-DD` (any date in that ISO week); regenerating a week is idempotent — it upserts on `week_start` rather than duplicating.
