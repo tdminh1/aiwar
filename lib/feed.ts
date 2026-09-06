@@ -1,6 +1,7 @@
 import "server-only";
 
 import { CATEGORIES } from "@/lib/categories";
+import { getLatestWeeklyDigest } from "@/lib/digest";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
 import type { Article, FeedData, ReaderQuote, Source, Topic } from "@/lib/types";
 
@@ -15,6 +16,7 @@ const EMPTY_FEED: FeedData = {
   lastCrawledAt: null,
   renderedAt: new Date().toISOString(),
   isConfigured: false,
+  latestDigest: null,
 };
 
 function isMissingProfileColumn(error: { message?: string }) {
@@ -39,7 +41,7 @@ export async function getFeedData(): Promise<FeedData> {
 
   const supabase = createSupabaseServerClient();
 
-  const [sourcesResult, articlesResult, topicsResult, mostReadResult, readerQuotesResult] = await Promise.all([
+  const [sourcesResult, articlesResult, topicsResult, mostReadResult, readerQuotesResult, latestDigest] = await Promise.all([
     supabase
       .from("sources")
       .select("*")
@@ -64,6 +66,7 @@ export async function getFeedData(): Promise<FeedData> {
       .select("id, name, text, profile_url, profile_platform, profile_handle, created_at")
       .order("created_at", { ascending: false })
       .limit(20),
+    getLatestWeeklyDigest(),
   ]);
 
   if (sourcesResult.error) throw sourcesResult.error;
@@ -106,5 +109,6 @@ export async function getFeedData(): Promise<FeedData> {
     lastCrawledAt,
     renderedAt,
     isConfigured: true,
+    latestDigest,
   };
 }

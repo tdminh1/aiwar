@@ -9,6 +9,7 @@ import type {
   Article,
   ArticleCategory,
   Source,
+  WeeklyDigest,
   WeeklyDigestCategorySummary,
   WeeklyDigestSourceStats,
   WeeklyDigestStatus,
@@ -330,4 +331,120 @@ export async function generateWeeklyDigest(options?: { weekStart?: string | null
       errorMessage: message,
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Read side: page data loaders for /digest and /digest/[slug].
+// These never touch Anthropic — they only read what generateWeeklyDigest()
+// already wrote to weekly_digests.
+// ---------------------------------------------------------------------------
+
+const WEEK_START_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export type WeeklyDigestCategoryDisplay = {
+  category: ArticleCategory;
+  label: string;
+  summary: string;
+  articles: Article[];
+};
+
+export type WeeklyDigestSourceStatDisplay = {
+  source: Pick<Source, "id" | "name" | "color" | "logo_path">;
+  count: number;
+};
+
+export type WeeklyDigestPageData = {
+  digest: WeeklyDigest;
+  sourceStats: WeeklyDigestSourceStatDisplay[];
+  categories: WeeklyDigestCategoryDisplay[];
+};
+
+export function formatDigestWeekRange(weekStart: string, weekEnd: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+  const start = new Date(`${weekStart}T00:00:00.000Z`);
+  const end = new Date(`${weekEnd}T00:00:00.000Z`);
+  const yearSuffix = start.getUTCFullYear() !== new Date().getUTCFullYear() ? `, ${start.getUTCFullYear()}` : "";
+  return `${formatter.format(start)} – ${formatter.format(end)}${yearSuffix}`;
+}
+
+export async function getLatestWeeklyDigest() {
+  if (!hasSupabaseServerEnv()) return null;
+
+  const { data, error } = await createSupabaseServerClient()
+    .from("weekly_digests")
+    .select("*")
+    .eq("status", "success")
+    .order("week_start", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as WeeklyDigest;
+}
+
+export async function getWeeklyDigestList(limit = 52) {
+  if (!hasSupabaseServerEnv()) return [];
+
+  const { data, error } = await createSupabaseServerClient()
+    .from("weekly_digests")
+    .select("*")
+    .order("week_start", { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+  return (data ?? []) as WeeklyDigest[];
+}
+
+export async function getWeeklyDigestPageData(slug: string): Promise<WeeklyDigestPageData | null> {
+  if (!hasSupabaseServerEnv() || !WEEK_START_PATTERN.test(slug)) return null;
+
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase.from("weekly_digests").select("*").eq("week_start", slug).maybeSingle();
+  if (error || !data) return null;
+
+  const digest = data as WeeklyDigest;
+  const articleIds = Object.values(digest.category_summaries ?? {}).flatMap((entry) => entry.article_ids);
+  const sourceIds = Object.keys(digest.source_stats ?? {});
+
+  const [articlesResult, sourcesResult] = await Promise.all([
+    articleIds.length
+      ? supabase.from("articles").select("*").in("id", articleIds)
+      : Promise.resolve({ data: [] as Article[], error: null }),
+    sourceIds.length
+      ? supabase.from("sources").select("id, name, color, logo_path").in("id", sourceIds)
+      : Promise.resolve({ data: [] as Source[], error: null }),
+  ]);
+
+  const articlesById = new Map(((articlesResult.data ?? []) as Article[]).map((article) => [article.id, article]));
+  const sourceById = new Map(
+    ((sourcesResult.data ?? []) as Pick<Source, "id" | "name" | "color" | "logo_path">[]).map((source) => [
+      source.id,
+      source,
+    ]),
+  );
+
+  const categories: WeeklyDigestCategoryDisplay[] = [];
+  for (const option of CATEGORIES) {
+    if (option.id === "all") continue;
+    const entry = digest.category_summaries?.[option.id];
+    if (!entry) continue;
+
+    const categoryArticles = entry.article_ids
+      .map((id) => articlesById.get(id))
+      .filter((article): article is Article => Boolean(article))
+      .sort((a, b) => new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime());
+    if (!categoryArticles.length) continue;
+
+    categories.push({ category: option.id, label: option.name, summary: entry.summary, articles: categoryArticles });
+  }
+
+  const sourceStats: WeeklyDigestSourceStatDisplay[] = Object.entries(digest.source_stats ?? {})
+    .map(([sourceId, stat]) => {
+      const source = sourceById.get(sourceId);
+      return source ? { source, count: stat.count } : null;
+    })
+    .filter((item): item is WeeklyDigestSourceStatDisplay => Boolean(item))
+    .sort((a, b) => b.count - a.count);
+
+  return { digest, sourceStats, categories };
 }

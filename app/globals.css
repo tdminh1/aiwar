@@ -2791,3 +2791,139 @@ a.quote-name-lbl:hover { color: var(--ember); }
     padding-top: 48px;
   }
 }
+
+/* =========================================================
+   WEEKLY DIGEST
+   ========================================================= */
+.digest-disclaimer {
+  margin: 0;
+  color: var(--mute);
+  font-size: 12px;
+  font-style: italic;
+}
+.digest-error-dek {
+  color: var(--ember);
+}
+.digest-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.digest-stat-chip {
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--rule);
+  background: var(--white);
+}
+.digest-stat-count {
+  color: var(--mute);
+  font-weight: 700;
+}
+
+.digest-list {
+  display: grid;
+  gap: 4px;
+}
+.digest-list-item {
+  display: grid;
+  gap: 6px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--rule-2);
+}
+.digest-list-item:hover strong {
+  color: var(--ember);
+}
+.digest-list-item-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.digest-list-item-head strong {
+  font-family: var(--font-sans);
+  font-size: 18px;
+}
+.digest-status-flag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--ember-soft);
+  color: var(--ember);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.digest-list-item p {
+  margin: 0;
+  color: var(--ink-2);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.digest-list-item-meta {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+/* Teaser card surfaced at the top of the private feed, linking to the
+   latest generated digest. */
+.digest-teaser {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-card);
+  background: var(--paper-2);
+}
+.digest-teaser-body {
+  display: grid;
+  gap: 2px;
+}
+.digest-teaser-eyebrow {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+.digest-teaser-title {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+}
+.digest-teaser-summary {
+  color: var(--mute);
+  font-size: 13px;
+}
+.digest-teaser-cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .digest-teaser {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .digest-teaser-cta {
+    width: 100%;
+    justify-content: center;
+  }
+}

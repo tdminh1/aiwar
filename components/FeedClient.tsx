@@ -17,8 +17,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SafeImage } from "@/components/SafeImage";
 import { loginPathForCurrentPage } from "@/lib/auth-utils";
-import { articlePath } from "@/lib/routing";
-import type { Article, CategoryOption, FeedData, ReaderQuote, Source } from "@/lib/types";
+import { articlePath, digestPath } from "@/lib/routing";
+import type { Article, CategoryOption, FeedData, ReaderQuote, Source, WeeklyDigest } from "@/lib/types";
 
 type Filters = {
   category: string;
@@ -599,6 +599,28 @@ function RightDiscovery({
   );
 }
 
+function DigestTeaser({ digest }: { digest: WeeklyDigest }) {
+  return (
+    <Link className="digest-teaser" href={digestPath(digest)}>
+      <span className="digest-teaser-body">
+        <span className="digest-teaser-eyebrow">This week in AI</span>
+        <span className="digest-teaser-title">Weekly AI Digest is ready</span>
+        {digest.overall_summary ? <span className="digest-teaser-summary">{compactSummary(digest.overall_summary)}</span> : null}
+      </span>
+      <span className="digest-teaser-cta">
+        Read digest
+        <ExternalLink size={12} />
+      </span>
+    </Link>
+  );
+}
+
+function compactSummary(text: string, maxLength = 140) {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength - 1).replace(/\s+\S*$/, "")}…`;
+}
+
 export function FeedClient({ initialData }: { initialData: FeedData }) {
   const initialNow = useMemo(() => new Date(initialData.renderedAt), [initialData.renderedAt]);
   const [articles, setArticles] = useState<Article[]>(initialData.articles);
@@ -807,6 +829,8 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
           <span className="brand-tag">Live</span>
         </div>
         <h1 className="sr-only">AI War - live frontier AI lab news, research, safety, and product updates</h1>
+
+        {initialData.latestDigest ? <DigestTeaser digest={initialData.latestDigest} /> : null}
 
         <div className="mobile-bar">
           <button className="mobile-filter-btn" onClick={() => setDrawerOpen(true)}>
