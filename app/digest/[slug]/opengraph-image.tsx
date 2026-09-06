@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
-import { formatDigestWeekRange, getWeeklyDigestPageData } from "@/lib/digest";
+import { getWeeklyDigestPageData } from "@/lib/digest";
+import { formatDigestWeekRange } from "@/lib/digest-format";
 import { SITE_NAME } from "@/lib/seo";
 
 export const size = {

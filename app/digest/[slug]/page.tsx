@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatDigestWeekRange, getWeeklyDigestPageData } from "@/lib/digest";
+import { getWeeklyDigestPageData } from "@/lib/digest";
+import { formatDigestWeekRange } from "@/lib/digest-format";
 import { articlePath, digestPath, digestUrl } from "@/lib/routing";
 import { breadcrumbJsonLd, compactText, organizationJsonLd, SITE_NAME } from "@/lib/seo";
 

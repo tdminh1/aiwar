@@ -92,6 +92,29 @@ export type WeeklyDigest = {
   created_at: string;
 };
 
+// Display-ready shapes for a single digest's detail view (list of underlying
+// articles per category, resolved source metadata) — shared between the
+// server-rendered /digest/[slug] page and the client-fetched digest panel
+// (components/DigestPanel.tsx via /api/digests/[slug]), so this file must
+// stay free of "server-only" imports.
+export type WeeklyDigestCategoryDetail = {
+  category: ArticleCategory;
+  label: string;
+  summary: string;
+  articles: Article[];
+};
+
+export type WeeklyDigestSourceStat = {
+  source: Pick<Source, "id" | "name" | "color" | "logo_path">;
+  count: number;
+};
+
+export type WeeklyDigestDetail = {
+  digest: WeeklyDigest;
+  sourceStats: WeeklyDigestSourceStat[];
+  categories: WeeklyDigestCategoryDetail[];
+};
+
 export type FeedData = {
   sources: Source[];
   categories: CategoryOption[];

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatDigestWeekRange, getWeeklyDigestList } from "@/lib/digest";
+import { getWeeklyDigestList } from "@/lib/digest";
+import { formatDigestWeekRange } from "@/lib/digest-format";
 import { digestPath } from "@/lib/routing";
 
 export const dynamic = "force-dynamic";

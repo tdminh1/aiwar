@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { DigestPanel } from "@/components/DigestPanel";
 import { SafeImage } from "@/components/SafeImage";
 import { loginPathForCurrentPage } from "@/lib/auth-utils";
 import { articlePath, digestPath } from "@/lib/routing";
@@ -883,6 +884,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
             <span>updated {timeAgo(initialData.lastCrawledAt || filtered[0]?.published_at || null, initialNow)}</span>
           </div>
           <div className="feed-tools">
+            <DigestPanel />
             <span className="sort-status">
               <ArrowDownNarrowWide size={12} />
               Newest first

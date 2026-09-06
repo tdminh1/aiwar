@@ -9,7 +9,10 @@ import type {
   ArticleCategory,
   Source,
   WeeklyDigest,
+  WeeklyDigestCategoryDetail,
   WeeklyDigestCategorySummary,
+  WeeklyDigestDetail,
+  WeeklyDigestSourceStat,
   WeeklyDigestSourceStats,
   WeeklyDigestStatus,
 } from "@/lib/types";
@@ -382,38 +385,14 @@ export async function generateWeeklyDigest(options?: { weekStart?: string | null
 }
 
 // ---------------------------------------------------------------------------
-// Read side: page data loaders for /digest and /digest/[slug].
-// These never touch Anthropic — they only read what generateWeeklyDigest()
-// already wrote to weekly_digests.
+// Read side: page data loaders for /digest, /digest/[slug], and the digest
+// panel's API routes (app/api/digests/**). These never touch OpenRouter —
+// they only read what generateWeeklyDigest() already wrote to
+// weekly_digests. See lib/digest-format.ts for the client-safe date
+// formatter shared with components/DigestPanel.tsx.
 // ---------------------------------------------------------------------------
 
 const WEEK_START_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-export type WeeklyDigestCategoryDisplay = {
-  category: ArticleCategory;
-  label: string;
-  summary: string;
-  articles: Article[];
-};
-
-export type WeeklyDigestSourceStatDisplay = {
-  source: Pick<Source, "id" | "name" | "color" | "logo_path">;
-  count: number;
-};
-
-export type WeeklyDigestPageData = {
-  digest: WeeklyDigest;
-  sourceStats: WeeklyDigestSourceStatDisplay[];
-  categories: WeeklyDigestCategoryDisplay[];
-};
-
-export function formatDigestWeekRange(weekStart: string, weekEnd: string) {
-  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-  const start = new Date(`${weekStart}T00:00:00.000Z`);
-  const end = new Date(`${weekEnd}T00:00:00.000Z`);
-  const yearSuffix = start.getUTCFullYear() !== new Date().getUTCFullYear() ? `, ${start.getUTCFullYear()}` : "";
-  return `${formatter.format(start)} – ${formatter.format(end)}${yearSuffix}`;
-}
 
 export async function getLatestWeeklyDigest() {
   if (!hasSupabaseServerEnv()) return null;
@@ -443,7 +422,7 @@ export async function getWeeklyDigestList(limit = 52) {
   return (data ?? []) as WeeklyDigest[];
 }
 
-export async function getWeeklyDigestPageData(slug: string): Promise<WeeklyDigestPageData | null> {
+export async function getWeeklyDigestPageData(slug: string): Promise<WeeklyDigestDetail | null> {
   if (!hasSupabaseServerEnv() || !WEEK_START_PATTERN.test(slug)) return null;
 
   const supabase = createSupabaseServerClient();
@@ -471,7 +450,7 @@ export async function getWeeklyDigestPageData(slug: string): Promise<WeeklyDiges
     ]),
   );
 
-  const categories: WeeklyDigestCategoryDisplay[] = [];
+  const categories: WeeklyDigestCategoryDetail[] = [];
   for (const option of CATEGORIES) {
     if (option.id === "all") continue;
     const entry = digest.category_summaries?.[option.id];
@@ -486,12 +465,12 @@ export async function getWeeklyDigestPageData(slug: string): Promise<WeeklyDiges
     categories.push({ category: option.id, label: option.name, summary: entry.summary, articles: categoryArticles });
   }
 
-  const sourceStats: WeeklyDigestSourceStatDisplay[] = Object.entries(digest.source_stats ?? {})
+  const sourceStats: WeeklyDigestSourceStat[] = Object.entries(digest.source_stats ?? {})
     .map(([sourceId, stat]) => {
       const source = sourceById.get(sourceId);
       return source ? { source, count: stat.count } : null;
     })
-    .filter((item): item is WeeklyDigestSourceStatDisplay => Boolean(item))
+    .filter((item): item is WeeklyDigestSourceStat => Boolean(item))
     .sort((a, b) => b.count - a.count);
 
   return { digest, sourceStats, categories };
