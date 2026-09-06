@@ -81,7 +81,9 @@ curl -X POST "https://your-deployment/api/crawl-x-quotes" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-Each run resolves the configured handles to X user IDs in one call, then fetches each handle's latest original tweets (retweets and replies excluded) and upserts them into `x_quotes` by `tweet_id` — safe to re-run, never duplicates. One handle failing (suspended, renamed, rate-limited) does not block the others. There is no bundled schedule for this route — wire it into your own scheduler (or a Vercel Cron entry, `vercel crons add --path /api/crawl-x-quotes --schedule "..."`) at whatever cadence fits your X API plan's rate limits.
+Each run resolves the configured handles to X user IDs in one call, then fetches each handle's latest original tweets (retweets and replies excluded) and upserts them into `x_quotes` by `tweet_id` — safe to re-run, never duplicates. One handle failing (suspended, renamed, rate-limited) does not block the others.
+
+`vercel.json` registers a daily Vercel Cron Job for this route (`0 7 * * *`, 07:00 UTC) — chosen to stay well within paid X API plans' rate limits. Adjust the schedule (`vercel crons add --path /api/crawl-x-quotes --schedule "..."`, or edit `vercel.json` and redeploy) if your plan allows more or needs less.
 
 ## Weekly AI Digest
 

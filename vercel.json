@@ -3,6 +3,10 @@
     {
       "path": "/api/digest/generate",
       "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/crawl-x-quotes",
+      "schedule": "0 7 * * *"
     }
   ]
 }
