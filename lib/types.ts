@@ -65,6 +65,33 @@ export type CategoryOption = {
   name: string;
 };
 
+export type WeeklyDigestStatus = "success" | "partial" | "failed";
+
+export type WeeklyDigestCategorySummary = {
+  summary: string;
+  article_ids: string[];
+};
+
+export type WeeklyDigestSourceStats = {
+  count: number;
+};
+
+export type WeeklyDigest = {
+  id: string;
+  week_start: string;
+  week_end: string;
+  slug: string | null;
+  overall_summary: string | null;
+  category_summaries: Partial<Record<ArticleCategory, WeeklyDigestCategorySummary>> | null;
+  source_stats: Record<string, WeeklyDigestSourceStats> | null;
+  articles_considered: number;
+  status: WeeklyDigestStatus;
+  error_message: string | null;
+  model: string | null;
+  generated_at: string;
+  created_at: string;
+};
+
 export type FeedData = {
   sources: Source[];
   categories: CategoryOption[];

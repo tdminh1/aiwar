@@ -117,6 +117,29 @@ create table if not exists crawl_runs (
   error_message text
 );
 
+-- One row per ISO week. category_summaries / source_stats are grounded strictly
+-- in articles actually crawled that week (see lib/digest.ts) so every summary
+-- sentence traces back to a real, linkable article.
+create table if not exists weekly_digests (
+  id uuid primary key default gen_random_uuid(),
+  week_start date not null,
+  week_end date not null,
+  slug text unique,
+  overall_summary text,
+  category_summaries jsonb,
+  source_stats jsonb,
+  articles_considered integer not null default 0,
+  status text not null default 'success' check (status in ('success', 'partial', 'failed')),
+  error_message text,
+  model text,
+  generated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  constraint weekly_digests_week_start_unique unique (week_start)
+);
+
+create index if not exists weekly_digests_week_start_idx on weekly_digests(week_start desc);
+create index if not exists weekly_digests_slug_idx on weekly_digests(slug);
+
 -- Browser clients authenticate through Supabase Auth, but all application data
 -- is served by protected Next.js routes. Keep direct anon/authenticated access
 -- closed even if the default Supabase grants change.
@@ -128,6 +151,7 @@ alter table article_metrics enable row level security;
 alter table subscribers enable row level security;
 alter table reader_quotes enable row level security;
 alter table crawl_runs enable row level security;
+alter table weekly_digests enable row level security;
 
 create or replace view most_read_articles as
 select
