@@ -99,5 +99,5 @@ Branch names follow the existing `feature/*` convention:
 ## 9. Open smaller decisions (defaults proposed, confirm before or during build)
 
 - **Week boundary**: default to ISO week Mon 00:00 UTC – Sun 23:59 UTC (matches the crawler's existing UTC-based cutoff logic). Say if you want a different boundary (e.g. local timezone, or Sun–Sat).
-- **Teaser placement**: default to a card near the top of the feed column (keeps discovery visible without touching the currently-quiet right rail, which is reserved for Reader Quotes per `DESIGN.md`). Alternative: a new top-nav link "Digest".
+- **Teaser placement**: default to a card near the top of the feed column (keeps discovery visible without touching the right rail, used by the "AI Voices on X" quote wall). Alternative: a new top-nav link "Digest".
 - **Backfill**: whether to generate digests retroactively for prior weeks once this ships, or start counting from the first live cron run.

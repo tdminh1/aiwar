@@ -50,13 +50,18 @@ export type Topic = {
   created_at: string;
 };
 
-export type ReaderQuote = {
+// Tweets crawled from a configured list of X handles (lib/x-quotes-config.ts)
+// via lib/x-quotes.ts — replaces the retired reader-submitted quote wall.
+export type XQuote = {
   id: string;
-  name: string;
+  tweet_id: string;
+  author_handle: string;
+  author_name: string | null;
+  author_avatar_url: string | null;
   text: string;
-  profile_url: string | null;
-  profile_platform: "facebook" | "x" | "instagram" | null;
-  profile_handle: string | null;
+  tweet_url: string;
+  posted_at: string | null;
+  crawled_at: string;
   created_at: string;
 };
 
@@ -122,7 +127,7 @@ export type FeedData = {
   articlesTotal: number;
   topics: Topic[];
   mostRead: Article[];
-  readerQuotes: ReaderQuote[];
+  xQuotes: XQuote[];
   lastCrawledAt: string | null;
   renderedAt: string;
   isConfigured: boolean;

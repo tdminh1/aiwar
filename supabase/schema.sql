@@ -106,6 +106,24 @@ alter table reader_quotes add column if not exists profile_handle text;
 
 create index if not exists reader_quotes_created_at_idx on reader_quotes(created_at desc);
 
+-- reader_quotes is kept (data preserved) but retired from the app — replaced
+-- by x_quotes, tweets crawled from a configured list of X handles
+-- (lib/x-quotes-config.ts) via lib/x-quotes.ts / /api/crawl-x-quotes.
+create table if not exists x_quotes (
+  id uuid primary key default gen_random_uuid(),
+  tweet_id text not null unique,
+  author_handle text not null,
+  author_name text,
+  author_avatar_url text,
+  text text not null,
+  tweet_url text not null,
+  posted_at timestamptz,
+  crawled_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists x_quotes_posted_at_idx on x_quotes(posted_at desc);
+
 create table if not exists crawl_runs (
   id uuid primary key default gen_random_uuid(),
   source_id text references sources(id) on delete set null,
@@ -152,6 +170,7 @@ alter table subscribers enable row level security;
 alter table reader_quotes enable row level security;
 alter table crawl_runs enable row level security;
 alter table weekly_digests enable row level security;
+alter table x_quotes enable row level security;
 
 create or replace view most_read_articles as
 select

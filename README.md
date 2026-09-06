@@ -40,8 +40,8 @@ Secrets are only read on the server. The client does not receive the Supabase se
 - `/` is the public landing page.
 - `/login` handles email/password sign-in, account creation, confirmation resend, and password recovery.
 - `/reset-password` lets a verified recovery session choose a new password.
-- `/feed`, `/articles/*`, and `/topics/*` require a valid Supabase Auth session.
-- Feed and quote API routes also return `401` without a valid session.
+- `/feed`, `/articles/*`, `/topics/*`, and `/digest*` require a valid Supabase Auth session.
+- Client-fetched API routes (`/api/articles`, `/api/digests*`) also return `401` without a valid session.
 
 For email confirmation, add these Supabase Auth redirect URLs:
 
@@ -69,6 +69,19 @@ Run the crawler manually with:
 ```bash
 npm run crawl:sources
 ```
+
+## AI Voices on X
+
+The right rail's quote wall shows recent tweets crawled from a configured list of X (Twitter) handles — [`lib/x-quotes-config.ts`](./lib/x-quotes-config.ts), edit that list any time, no other code changes needed. It replaces the earlier reader-submitted quote wall (`reader_quotes` data is kept, just no longer read or written by the app).
+
+Set `X_BEARER_TOKEN` (an X API v2 app-only bearer token) alongside `CRON_SECRET`. `/api/crawl-x-quotes` uses the same bearer-token contract as `/api/crawl`:
+
+```bash
+curl -X POST "https://your-deployment/api/crawl-x-quotes" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Each run resolves the configured handles to X user IDs in one call, then fetches each handle's latest original tweets (retweets and replies excluded) and upserts them into `x_quotes` by `tweet_id` — safe to re-run, never duplicates. One handle failing (suspended, renamed, rate-limited) does not block the others. There is no bundled schedule for this route — wire it into your own scheduler (or a Vercel Cron entry, `vercel crons add --path /api/crawl-x-quotes --schedule "..."`) at whatever cadence fits your X API plan's rate limits.
 
 ## Weekly AI Digest
 

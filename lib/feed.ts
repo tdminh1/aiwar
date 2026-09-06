@@ -3,7 +3,7 @@ import "server-only";
 import { CATEGORIES } from "@/lib/categories";
 import { getLatestWeeklyDigest } from "@/lib/digest";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
-import type { Article, FeedData, ReaderQuote, Source, Topic } from "@/lib/types";
+import type { Article, FeedData, Source, Topic, XQuote } from "@/lib/types";
 
 const EMPTY_FEED: FeedData = {
   sources: [],
@@ -12,25 +12,12 @@ const EMPTY_FEED: FeedData = {
   articlesTotal: 0,
   topics: [],
   mostRead: [],
-  readerQuotes: [],
+  xQuotes: [],
   lastCrawledAt: null,
   renderedAt: new Date().toISOString(),
   isConfigured: false,
   latestDigest: null,
 };
-
-function isMissingProfileColumn(error: { message?: string }) {
-  return /profile_(url|platform|handle)/i.test(error.message || "");
-}
-
-function withProfileFallback(data: unknown[] | null | undefined) {
-  return (data ?? []).map((quote) => ({
-    ...(quote as Record<string, unknown>),
-    profile_url: null,
-    profile_platform: null,
-    profile_handle: null,
-  })) as ReaderQuote[];
-}
 
 export async function getFeedData(): Promise<FeedData> {
   const renderedAt = new Date().toISOString();
@@ -41,7 +28,7 @@ export async function getFeedData(): Promise<FeedData> {
 
   const supabase = createSupabaseServerClient();
 
-  const [sourcesResult, articlesResult, topicsResult, mostReadResult, readerQuotesResult, latestDigest] = await Promise.all([
+  const [sourcesResult, articlesResult, topicsResult, mostReadResult, xQuotesResult, latestDigest] = await Promise.all([
     supabase
       .from("sources")
       .select("*")
@@ -62,9 +49,9 @@ export async function getFeedData(): Promise<FeedData> {
       .select("*")
       .limit(5),
     supabase
-      .from("reader_quotes")
-      .select("id, name, text, profile_url, profile_platform, profile_handle, created_at")
-      .order("created_at", { ascending: false })
+      .from("x_quotes")
+      .select("*")
+      .order("posted_at", { ascending: false, nullsFirst: false })
       .limit(20),
     getLatestWeeklyDigest(),
   ]);
@@ -73,24 +60,13 @@ export async function getFeedData(): Promise<FeedData> {
   if (articlesResult.error) throw articlesResult.error;
   if (topicsResult.error) throw topicsResult.error;
   if (mostReadResult.error) throw mostReadResult.error;
-  let readerQuotes = readerQuotesResult.data ?? [];
-  if (readerQuotesResult.error) {
-    if (!isMissingProfileColumn(readerQuotesResult.error)) throw readerQuotesResult.error;
-
-    const legacyReaderQuotesResult = await supabase
-      .from("reader_quotes")
-      .select("id, name, text, created_at")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (legacyReaderQuotesResult.error) throw legacyReaderQuotesResult.error;
-    readerQuotes = withProfileFallback(legacyReaderQuotesResult.data);
-  }
+  if (xQuotesResult.error) throw xQuotesResult.error;
 
   const sources = (sourcesResult.data ?? []) as Source[];
   const articles = (articlesResult.data ?? []) as Article[];
   const mostRead = (mostReadResult.data ?? []) as Article[];
   const topics = (topicsResult.data ?? []) as Topic[];
+  const xQuotes = (xQuotesResult.data ?? []) as XQuote[];
   const lastCrawledAt =
     sources
       .map((source) => source.last_crawled_at)
@@ -105,7 +81,7 @@ export async function getFeedData(): Promise<FeedData> {
     articlesTotal: articlesResult.count ?? articles.length,
     topics,
     mostRead,
-    readerQuotes,
+    xQuotes,
     lastCrawledAt,
     renderedAt,
     isConfigured: true,

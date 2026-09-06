@@ -201,24 +201,6 @@ const topics = [
   },
 ].map((topic) => ({ ...topic, slug: slugify(topic.name), last_activity_at: now.toISOString() }));
 
-const readerQuotes = [
-  {
-    name: "mira_k",
-    text: "Long context killed my RAG side project — and I'm not even mad.",
-    created_at: hoursAgo(2),
-  },
-  {
-    name: "devon",
-    text: "Reading three lab blogs back to back used to take my whole morning.",
-    created_at: hoursAgo(6),
-  },
-  {
-    name: "sora.k",
-    text: "The RSP v3 thresholds finally feel like they’re written for the world we live in.",
-    created_at: hoursAgo(24),
-  },
-];
-
 async function main() {
   const { error: sourceError } = await supabase.from("sources").upsert(sources, { onConflict: "id" });
   if (sourceError) throw sourceError;
@@ -240,25 +222,7 @@ async function main() {
   const { error: metricError } = await supabase.from("article_metrics").upsert(metrics, { onConflict: "article_id" });
   if (metricError) throw metricError;
 
-  const { data: existingQuotes, error: existingQuoteError } = await supabase
-    .from("reader_quotes")
-    .select("name, text")
-    .in(
-      "text",
-      readerQuotes.map((quote) => quote.text),
-    );
-  if (existingQuoteError) throw existingQuoteError;
-
-  const existingQuoteKeys = new Set((existingQuotes ?? []).map((quote) => `${quote.name}:${quote.text}`));
-  const newReaderQuotes = readerQuotes.filter((quote) => !existingQuoteKeys.has(`${quote.name}:${quote.text}`));
-  if (newReaderQuotes.length) {
-    const { error: quoteError } = await supabase.from("reader_quotes").insert(newReaderQuotes);
-    if (quoteError) throw quoteError;
-  }
-
-  console.log(
-    `Seeded ${sources.length} sources, ${articles.length} articles, ${topics.length} topics, and ${newReaderQuotes.length} reader quotes.`,
-  );
+  console.log(`Seeded ${sources.length} sources, ${articles.length} articles, and ${topics.length} topics.`);
 }
 
 main().catch((error) => {

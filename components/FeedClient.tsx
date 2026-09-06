@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ExternalLink,
   LayoutGrid,
-  Plus,
   Rows3,
   Search,
   SearchX,
@@ -14,12 +13,12 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DigestPanel } from "@/components/DigestPanel";
 import { SafeImage } from "@/components/SafeImage";
 import { loginPathForCurrentPage } from "@/lib/auth-utils";
 import { articlePath, digestPath } from "@/lib/routing";
-import type { Article, CategoryOption, FeedData, ReaderQuote, Source, WeeklyDigest } from "@/lib/types";
+import type { Article, CategoryOption, FeedData, Source, WeeklyDigest, XQuote } from "@/lib/types";
 
 type Filters = {
   category: string;
@@ -393,188 +392,50 @@ function LeftFilters({
   );
 }
 
-const SEED_QUOTES: ReaderQuote[] = [
-  {
-    id: "q1",
-    name: "mira_k",
-    text: "Long context killed my RAG side project — and I'm not even mad.",
-    profile_url: null,
-    profile_platform: null,
-    profile_handle: null,
-    created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: "q2",
-    name: "devon",
-    text: "Reading three lab blogs back to back used to take my whole morning.",
-    profile_url: null,
-    profile_platform: null,
-    profile_handle: null,
-    created_at: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: "q3",
-    name: "sora.k",
-    text: "The RSP v3 thresholds finally feel like they’re written for the world we live in.",
-    profile_url: null,
-    profile_platform: null,
-    profile_handle: null,
-    created_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-  },
-];
-
-const QUOTES_EVENT = "aiwar_quotes_updated";
 const LOAD_MORE_LIMIT = 40;
 
-function platformLogo(platform: ReaderQuote["profile_platform"]) {
-  if (platform === "facebook") return "/assets/facebook-logo.jpg";
-  if (platform === "instagram") return "/assets/instagram-logo.jpeg";
-  if (platform === "x") return "/assets/x-logo.png";
-  return null;
+function xQuoteAuthorLabel(quote: XQuote) {
+  return quote.author_handle || "ai";
 }
 
-function quoteHandle(quote: ReaderQuote) {
-  return quote.profile_handle || quote.name || "anon";
-}
-
-function QuoteWall({
-  initialQuotes,
-  isConfigured,
-  now,
-}: {
-  initialQuotes: ReaderQuote[];
-  isConfigured: boolean;
-  now: Date;
-}) {
-  const [quotes, setQuotes] = useState<ReaderQuote[]>(initialQuotes.length ? initialQuotes : SEED_QUOTES);
-  const [profileUrl, setProfileUrl] = useState("");
-  const [text, setText] = useState("");
-  const [open, setOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!isConfigured) return;
-
-    let cancelled = false;
-    async function loadLatestQuotes() {
-      try {
-        const response = await fetch("/api/quotes", { cache: "no-store" });
-        if (redirectExpiredSession(response)) return;
-        const payload = (await response.json().catch(() => null)) as { quotes?: ReaderQuote[] } | null;
-        if (!cancelled && response.ok && payload?.quotes?.length) {
-          setQuotes(payload.quotes);
-        }
-      } catch {}
-    }
-
-    loadLatestQuotes();
-    return () => {
-      cancelled = true;
-    };
-  }, [isConfigured]);
-
-  useEffect(() => {
-    function syncQuotes(event: Event) {
-      const quote = (event as CustomEvent<ReaderQuote>).detail;
-      if (quote) setQuotes((items) => [quote, ...items.filter((item) => item.id !== quote.id)].slice(0, 20));
-    }
-
-    window.addEventListener(QUOTES_EVENT, syncQuotes);
-    return () => window.removeEventListener(QUOTES_EVENT, syncQuotes);
-  }, []);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const quoteText = text.trim();
-    const profile = profileUrl.trim();
-    if (!quoteText || !profile || isSaving) return;
-
-    setIsSaving(true);
-    setError("");
-
-    try {
-      const response = await fetch("/api/quotes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileUrl: profile, text: quoteText }),
-      });
-      if (redirectExpiredSession(response)) return;
-      const payload = (await response.json().catch(() => null)) as { quote?: ReaderQuote; error?: string } | null;
-
-      if (!response.ok || !payload?.quote) {
-        throw new Error(payload?.error || "Could not save quote.");
-      }
-
-      setProfileUrl("");
-      setText("");
-      setOpen(false);
-      window.dispatchEvent(new CustomEvent<ReaderQuote>(QUOTES_EVENT, { detail: payload.quote }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save quote.");
-    } finally {
-      setIsSaving(false);
-    }
+// Read-only — quotes are crawled from lib/x-quotes-config.ts's handle list
+// (see /api/crawl-x-quotes), not submitted by readers.
+function XQuoteWall({ initialQuotes, now }: { initialQuotes: XQuote[]; now: Date }) {
+  if (initialQuotes.length === 0) {
+    return (
+      <div className="r-section quote-wall">
+        <div className="r-head">
+          <h3 className="r-title">AI Voices on X</h3>
+        </div>
+        <p className="quote-empty">No tweets crawled yet. Check back after the next scheduled run.</p>
+      </div>
+    );
   }
 
   return (
     <div className="r-section quote-wall">
       <div className="r-head">
-        <h3 className="r-title">Reader Quotes</h3>
-        <button className="r-add" onClick={() => setOpen((value) => !value)} aria-label="Add quote">
-          {open ? <X size={12} strokeWidth={2.5} /> : <Plus size={12} strokeWidth={2.5} />}
-        </button>
+        <h3 className="r-title">AI Voices on X</h3>
       </div>
 
-      {open ? (
-        <form className="quote-form" onSubmit={submit}>
-          <input
-            className="quote-name"
-            type="url"
-            placeholder="Facebook, X, or Instagram profile URL"
-            value={profileUrl}
-            onChange={(event) => setProfileUrl(event.target.value)}
-            maxLength={160}
-          />
-          <textarea
-            className="quote-text"
-            placeholder="Share a thought on what the labs are shipping..."
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            maxLength={180}
-            rows={3}
-          />
-          <div className="quote-form-foot">
-            <span className="quote-count">{error || (!isConfigured ? "Supabase unavailable" : `${text.length}/180`)}</span>
-            <button type="submit" disabled={!text.trim() || !profileUrl.trim() || isSaving || !isConfigured}>
-              {isSaving ? "Saving" : "Post"}
-            </button>
-          </div>
-        </form>
-      ) : null}
-
       <ul className="quote-list">
-        {quotes.map((quote) => (
+        {initialQuotes.map((quote) => (
           <li key={quote.id} className="quote-item">
-            <span className={`quote-avatar ${quote.profile_platform || "legacy"}`}>
-              {platformLogo(quote.profile_platform) ? (
-                <img src={platformLogo(quote.profile_platform) || ""} alt={quote.profile_platform || ""} />
-              ) : (
-                "@"
-              )}
+            <span className="quote-avatar x">
+              {quote.author_avatar_url ? <img src={quote.author_avatar_url} alt={quote.author_handle} /> : "@"}
             </span>
             <div>
               <p className="quote-body">“{quote.text}”</p>
               <div className="quote-meta">
-                {quote.profile_url ? (
-                  <a className="quote-name-lbl" href={quote.profile_url} target="_blank" rel="noopener noreferrer">
-                    @{quoteHandle(quote)}
-                  </a>
-                ) : (
-                  <span className="quote-name-lbl">@{quoteHandle(quote)}</span>
-                )}
-                <span className="dot-sep">·</span>
-                <span>{timeAgo(quote.created_at, now)}</span>
+                <a className="quote-name-lbl" href={quote.tweet_url} target="_blank" rel="noopener noreferrer">
+                  @{xQuoteAuthorLabel(quote)}
+                </a>
+                {quote.posted_at ? (
+                  <>
+                    <span className="dot-sep">·</span>
+                    <span>{timeAgo(quote.posted_at, now)}</span>
+                  </>
+                ) : null}
               </div>
             </div>
           </li>
@@ -584,18 +445,10 @@ function QuoteWall({
   );
 }
 
-function RightDiscovery({
-  initialQuotes,
-  isConfigured,
-  now,
-}: {
-  initialQuotes: ReaderQuote[];
-  isConfigured: boolean;
-  now: Date;
-}) {
+function RightDiscovery({ xQuotes, now }: { xQuotes: XQuote[]; now: Date }) {
   return (
     <>
-      <QuoteWall initialQuotes={initialQuotes} isConfigured={isConfigured} now={now} />
+      <XQuoteWall initialQuotes={xQuotes} now={now} />
     </>
   );
 }
@@ -814,11 +667,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
         </aside>
 
         <aside className="right-side">
-          <RightDiscovery
-            initialQuotes={initialData.readerQuotes}
-            isConfigured={initialData.isConfigured}
-            now={initialNow}
-          />
+          <RightDiscovery xQuotes={initialData.xQuotes} now={initialNow} />
         </aside>
 
         <main className="feed-col">
@@ -985,11 +834,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
         )}
 
         <div className="mobile-aside">
-          <RightDiscovery
-            initialQuotes={initialData.readerQuotes}
-            isConfigured={initialData.isConfigured}
-            now={initialNow}
-          />
+          <RightDiscovery xQuotes={initialData.xQuotes} now={initialNow} />
         </div>
         </main>
       </div>
