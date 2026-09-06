@@ -17,7 +17,7 @@ Once a week, AI War automatically reads everything the three tracked labs publis
 ## 3. In scope (V1)
 
 - **Schema**: new `weekly_digests` table, one row per ISO week, holding the overall summary, a per-category summary (JSON), per-source article counts, and generation status/metadata.
-- **Pipeline** (`lib/digest.ts`): for a given week window, pull all `articles` with `published_at` in range, group by `category` (per `lib/categories.ts`), then by `source_id`. Make one structured Claude API call per digest (not per category — cheaper, more consistent) that returns:
+- **Pipeline** (`lib/digest.ts`): for a given week window, pull all `articles` with `published_at` in range, group by `category` (per `lib/categories.ts`), then by `source_id`. Make one structured LLM call per digest via OpenRouter's OpenAI-compatible API (not per category — cheaper, more consistent; default model `anthropic/claude-sonnet-5`, overridable via `OPENROUTER_MODEL`) that returns:
   - a 3–6 sentence overall "this week across OpenAI, Anthropic, and Google DeepMind" summary;
   - one paragraph per category that actually had articles that week;
   - nothing else — the model is only given the real article titles/excerpts/urls/sources for that week and is instructed not to add facts beyond them.
@@ -31,7 +31,7 @@ Once a week, AI War automatically reads everything the three tracked labs publis
   - Explicit "AI-generated — verify against the linked sources" note on every digest page.
   - Empty state for "not generated yet" and a visible `status: failed` state that never breaks the homepage.
 - **Types**: `WeeklyDigest`, `WeeklyDigestCategorySummary` added to `lib/types.ts`.
-- **Env var**: `ANTHROPIC_API_KEY` (Claude Messages API, server-only, same handling discipline as `SUPABASE_SERVICE_ROLE_KEY`).
+- **Env var**: `OPENROUTER_API_KEY` (OpenRouter's OpenAI-compatible chat-completions API, server-only, same handling discipline as `SUPABASE_SERVICE_ROLE_KEY`); optional `OPENROUTER_MODEL` to pick a different OpenRouter model slug.
 
 ## 4. Out of scope for V1 (later roadmap)
 
@@ -75,7 +75,7 @@ Follows the same RLS posture as the rest of the schema: browser never queries th
 3. Compute the week window: ISO week, Monday 00:00 UTC – Sunday 23:59 UTC, to match the existing crawler's UTC-based cutoff logic. (Flag if you want a different boundary.)
 4. Query `articles` in that window, joined to `sources` for names/colors.
 5. Group by category, then by source; build a compact JSON context (title, excerpt, source, url, published_at) per category.
-6. One Claude API call, structured/JSON output, system prompt constrained to: *summarize only what is in the provided article list; if a category or source has zero articles, say so; never introduce outside facts*.
+6. One OpenRouter call (tool-calling forced to a fixed JSON schema), system prompt constrained to: *summarize only what is in the provided article list; if a category or source has zero articles, say so; never introduce outside facts*.
 7. Upsert the `weekly_digests` row (unique on `week_start`).
 8. On any failure, write `status: 'failed'` + `error_message`, and the UI keeps showing the last successful digest instead of breaking.
 
@@ -84,7 +84,7 @@ Follows the same RLS posture as the rest of the schema: browser never queries th
 - **Groundedness**: every summary sentence must trace back to an article actually crawled that week; the digest page links to each underlying article so a reader can verify. No invented figures, quotes, or claims.
 - **Cost**: at current 3-source volume, expect well under 100 articles/week → a single LLM call per week (~4–5 calls/month). Cap input size defensively (e.g. same 80-article cap style already used in `getFeedData()`).
 - **Reliability**: a digest failure must never break `/api/crawl`, the homepage, or existing pages — isolated route, isolated table, graceful "not generated yet" / "generation failed" states.
-- **Security**: `ANTHROPIC_API_KEY` and `CRON_SECRET` stay server-only, same discipline as the existing service-role key; RLS enabled on the new table.
+- **Security**: `OPENROUTER_API_KEY` and `CRON_SECRET` stay server-only, same discipline as the existing service-role key; RLS enabled on the new table.
 - **Idempotency**: regenerating a week overwrites via upsert on `week_start`, never creates duplicates.
 
 ## 8. Rollout milestones

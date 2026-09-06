@@ -74,7 +74,7 @@ npm run crawl:sources
 
 `/api/digest/generate` summarizes everything crawled in the most recently completed ISO week (Mon-Sun, UTC) into one `weekly_digests` row, grouped by category. It is grounded strictly in that week's crawled articles — see [`docs/weekly-ai-digest-plan.md`](./docs/weekly-ai-digest-plan.md) for the full feature scope.
 
-Set `ANTHROPIC_API_KEY` alongside `CRON_SECRET`. The route uses the same bearer-token contract as `/api/crawl`:
+Set `OPENROUTER_API_KEY` alongside `CRON_SECRET`. Summaries are generated through [OpenRouter](https://openrouter.ai/docs)'s OpenAI-compatible API rather than a provider SDK directly, so any tool-calling-capable model slug from OpenRouter's catalog works — set `OPENROUTER_MODEL` to override the default (`anthropic/claude-sonnet-5`). The route uses the same bearer-token contract as `/api/crawl`:
 
 ```bash
 curl -X POST "https://your-deployment/api/digest/generate" \

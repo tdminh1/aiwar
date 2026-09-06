@@ -1,6 +1,5 @@
 import "server-only";
 
-import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { CATEGORIES } from "@/lib/categories";
@@ -15,7 +14,12 @@ import type {
   WeeklyDigestStatus,
 } from "@/lib/types";
 
-const DEFAULT_MODEL = "claude-sonnet-5";
+// Requests go through OpenRouter's OpenAI-compatible API rather than a
+// provider SDK, so the model is just whichever OpenRouter slug is configured
+// (see https://openrouter.ai/models). Default: Anthropic's Claude Sonnet 5.
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const DEFAULT_MODEL = "anthropic/claude-sonnet-5";
+const LLM_TIMEOUT_MS = 55_000;
 const MAX_ARTICLES_PER_DIGEST = 200;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -103,28 +107,43 @@ function groupByCategory(articles: Article[]) {
   return grouped;
 }
 
-type ClaudeSummaryResult = {
+type LlmSummaryResult = {
   overallSummary: string;
   categorySummaries: Partial<Record<ArticleCategory, string>>;
   model: string;
 };
 
+type OpenRouterResponse = {
+  model?: string;
+  choices?: Array<{
+    message?: {
+      tool_calls?: Array<{
+        function?: { name?: string; arguments?: string };
+      }>;
+    };
+  }>;
+  error?: { message?: string };
+};
+
 /**
- * Calls Claude once for the whole digest (cheaper and more consistent than
- * one call per category) and forces a structured tool-call response so the
- * summary shape is reliable to parse.
+ * Calls the configured OpenRouter model once for the whole digest (cheaper
+ * and more consistent than one call per category) and forces a structured
+ * tool-call response so the summary shape is reliable to parse. OpenRouter
+ * exposes an OpenAI-compatible chat-completions API in front of many
+ * providers/models (see https://openrouter.ai/docs), so this uses plain
+ * `fetch` rather than a provider-specific SDK.
  *
  * The model is only ever shown the article rows actually crawled that week —
  * it is explicitly instructed not to introduce facts beyond them, and every
  * category summary stays linked (via `article_ids`) back to its source
  * articles so a reader can verify any claim against the original post.
  */
-async function summarizeWithClaude(
+async function summarizeWithOpenRouter(
   apiKey: string,
   articlesByCategory: Map<ArticleCategory, Article[]>,
   sourceNameById: Map<string, string>,
-): Promise<ClaudeSummaryResult> {
-  const client = new Anthropic({ apiKey });
+): Promise<LlmSummaryResult> {
+  const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const categoryLabelById = new Map(CATEGORIES.map((category) => [category.id, category.name]));
 
   const categoryPayload = [...articlesByCategory.entries()].map(([category, bucket]) => ({
@@ -147,65 +166,94 @@ async function summarizeWithClaude(
     };
   }
 
-  const response = await client.messages.create({
-    model: DEFAULT_MODEL,
-    max_tokens: 2000,
-    system: [
-      "You write factual weekly recaps for AI War, a site that tracks OpenAI, Anthropic, and Google DeepMind.",
-      "You will be given the ONLY facts you may use: a JSON list of articles actually published this week, grouped by category.",
-      "Never invent facts, numbers, dates, or claims that are not present in the given article titles or excerpts.",
-      "If a category has few articles, keep its summary short rather than padding it.",
-      "Write in a neutral, editorial tone. No marketing language, no exclamation points.",
-    ].join(" "),
-    messages: [
-      {
-        role: "user",
-        content:
-          `Here is this week's crawled article data, grouped by category:\n\n${JSON.stringify(categoryPayload, null, 2)}` +
-          `\n\nCall ${DIGEST_TOOL_NAME} with your recap.`,
-      },
-    ],
-    tools: [
-      {
-        name: DIGEST_TOOL_NAME,
-        description: "Emit the structured weekly AI digest.",
-        input_schema: {
-          type: "object",
-          properties: {
-            overall_summary: {
-              type: "string",
-              description:
-                "3-6 sentence overall recap of the week across OpenAI, Anthropic, and Google DeepMind, grounded only in the given articles.",
-            },
-            categories: {
+  const response = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${apiKey}`,
+      // Optional but recommended by OpenRouter for attributing usage; safe to
+      // send even without a real deployed URL.
+      "HTTP-Referer": "https://www.aiwar.site",
+      "X-Title": "AI War Weekly Digest",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 2000,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You write factual weekly recaps for AI War, a site that tracks OpenAI, Anthropic, and Google DeepMind.",
+            "You will be given the ONLY facts you may use: a JSON list of articles actually published this week, grouped by category.",
+            "Never invent facts, numbers, dates, or claims that are not present in the given article titles or excerpts.",
+            "If a category has few articles, keep its summary short rather than padding it.",
+            "Write in a neutral, editorial tone. No marketing language, no exclamation points.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content:
+            `Here is this week's crawled article data, grouped by category:\n\n${JSON.stringify(categoryPayload, null, 2)}` +
+            `\n\nCall ${DIGEST_TOOL_NAME} with your recap.`,
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: DIGEST_TOOL_NAME,
+            description: "Emit the structured weekly AI digest.",
+            parameters: {
               type: "object",
-              properties: categoryProperties,
-              required: Object.keys(categoryProperties),
+              properties: {
+                overall_summary: {
+                  type: "string",
+                  description:
+                    "3-6 sentence overall recap of the week across OpenAI, Anthropic, and Google DeepMind, grounded only in the given articles.",
+                },
+                categories: {
+                  type: "object",
+                  properties: categoryProperties,
+                  required: Object.keys(categoryProperties),
+                },
+              },
+              required: ["overall_summary", "categories"],
             },
           },
-          required: ["overall_summary", "categories"],
         },
-      },
-    ],
-    tool_choice: { type: "tool", name: DIGEST_TOOL_NAME },
+      ],
+      tool_choice: { type: "function", function: { name: DIGEST_TOOL_NAME } },
+    }),
   });
 
-  const toolUse = response.content.find(
-    (block): block is Anthropic.Messages.ToolUseBlock => block.type === "tool_use" && block.name === DIGEST_TOOL_NAME,
-  );
-  if (!toolUse) {
-    throw new Error("Claude did not return a structured digest.");
+  const payload = (await response.json()) as OpenRouterResponse;
+  if (!response.ok) {
+    throw new Error(payload.error?.message || `OpenRouter request failed with status ${response.status}`);
   }
 
-  const input = toolUse.input as { overall_summary?: string; categories?: Record<string, string> };
+  const toolCall = payload.choices?.[0]?.message?.tool_calls?.find(
+    (call) => call.function?.name === DIGEST_TOOL_NAME,
+  );
+  if (!toolCall?.function?.arguments) {
+    throw new Error("OpenRouter did not return a structured digest.");
+  }
+
+  let input: { overall_summary?: string; categories?: Record<string, string> };
+  try {
+    input = JSON.parse(toolCall.function.arguments);
+  } catch {
+    throw new Error("OpenRouter returned malformed digest JSON.");
+  }
+
   if (!input.overall_summary || !input.categories) {
-    throw new Error("Claude response is missing overall_summary or categories.");
+    throw new Error("OpenRouter response is missing overall_summary or categories.");
   }
 
   return {
     overallSummary: input.overall_summary,
     categorySummaries: input.categories as Partial<Record<ArticleCategory, string>>,
-    model: response.model,
+    model: payload.model || model,
   };
 }
 
@@ -226,9 +274,9 @@ export async function generateWeeklyDigest(options?: { weekStart?: string | null
   if (!hasSupabaseServerEnv()) {
     throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
   }
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    throw new Error("Missing ANTHROPIC_API_KEY.");
+    throw new Error("Missing OPENROUTER_API_KEY.");
   }
 
   const { weekStart, weekEnd } = resolveWeekRange(options?.weekStart);
@@ -276,7 +324,7 @@ export async function generateWeeklyDigest(options?: { weekStart?: string | null
   const articlesByCategory = groupByCategory(articles);
 
   try {
-    const { overallSummary, categorySummaries, model } = await summarizeWithClaude(
+    const { overallSummary, categorySummaries, model } = await summarizeWithOpenRouter(
       apiKey,
       articlesByCategory,
       sourceNameById,
