@@ -81,4 +81,14 @@ curl -X POST "https://your-deployment/api/digest/generate" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-Add a weekly call to the same external scheduler used for `/api/crawl` (e.g. Monday mornings, after that week's articles have been crawled). To (re)generate a specific past week instead of the most recently completed one, pass `?week_start=YYYY-MM-DD` (any date in that ISO week); regenerating a week is idempotent — it upserts on `week_start` rather than duplicating.
+Unlike `/api/crawl` (which needs every-two-hours frequency, beyond what Vercel's Hobby-plan Cron allows, hence the external scheduler above), a weekly cadence fits Vercel's native Cron Jobs directly. `vercel.json` registers one:
+
+```json
+{
+  "crons": [{ "path": "/api/digest/generate", "schedule": "0 6 * * 1" }]
+}
+```
+
+This fires every Monday at 06:00 UTC — after `/api/crawl`'s external scheduler has had time to pick up that week's last articles. Vercel automatically sends `Authorization: Bearer $CRON_SECRET` for registered cron jobs, so no extra wiring is needed beyond the `CRON_SECRET` env var already set for `/api/crawl`. Manage it with `vercel crons ls` / `vercel crons add` / `vercel crons run <path>` (`vercel crons` is currently in beta), or edit `vercel.json` directly and redeploy.
+
+To (re)generate a specific past week instead of the most recently completed one, pass `?week_start=YYYY-MM-DD` (any date in that ISO week); regenerating a week is idempotent — it upserts on `week_start` rather than duplicating.
