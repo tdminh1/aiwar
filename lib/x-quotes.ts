@@ -2,6 +2,7 @@ import "server-only";
 
 import { load } from "cheerio";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
+import type { XQuote } from "@/lib/types";
 import { X_QUOTE_HANDLES } from "@/lib/x-quotes-config";
 
 const X_API_BASE = "https://api.x.com/2";
@@ -148,11 +149,6 @@ export async function runXQuotesCrawl() {
   };
 }
 
-export type ManualXQuoteResult = {
-  tweetId: string;
-  authorHandle: string;
-};
-
 function parseTweetUrl(url: string) {
   const match = url.match(TWEET_URL_PATTERN);
   if (!match) return null;
@@ -181,7 +177,7 @@ function parseOEmbedHtml(html: string | undefined) {
  * manual fallback while the crawl (runXQuotesCrawl) is unavailable, or to
  * pin a specific tweet the configured handle list wouldn't otherwise surface.
  */
-export async function addXQuoteFromUrl(url: string): Promise<ManualXQuoteResult> {
+export async function addXQuoteFromUrl(url: string): Promise<XQuote> {
   if (!hasSupabaseServerEnv()) {
     throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
   }
@@ -207,20 +203,24 @@ export async function addXQuoteFromUrl(url: string): Promise<ManualXQuoteResult>
   }
 
   const supabase = createSupabaseServerClient();
-  const { error } = await supabase.from("x_quotes").upsert(
-    {
-      tweet_id: parsed.tweetId,
-      author_handle: parsed.handle,
-      author_name: oembed.author_name ?? null,
-      author_avatar_url: null,
-      text,
-      tweet_url: `https://x.com/${parsed.handle}/status/${parsed.tweetId}`,
-      posted_at: postedAt,
-      crawled_at: new Date().toISOString(),
-    } satisfies XQuoteRow,
-    { onConflict: "tweet_id" },
-  );
+  const { data, error } = await supabase
+    .from("x_quotes")
+    .upsert(
+      {
+        tweet_id: parsed.tweetId,
+        author_handle: parsed.handle,
+        author_name: oembed.author_name ?? null,
+        author_avatar_url: null,
+        text,
+        tweet_url: `https://x.com/${parsed.handle}/status/${parsed.tweetId}`,
+        posted_at: postedAt,
+        crawled_at: new Date().toISOString(),
+      } satisfies XQuoteRow,
+      { onConflict: "tweet_id" },
+    )
+    .select()
+    .single();
   if (error) throw new Error(error.message);
 
-  return { tweetId: parsed.tweetId, authorHandle: parsed.handle };
+  return data as XQuote;
 }

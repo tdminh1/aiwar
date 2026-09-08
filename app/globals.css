@@ -1108,7 +1108,7 @@ button { font-family: inherit; cursor: pointer; }
 .topic-pill.hot .trend { color: var(--ember); }
 .topic-pill.hot:hover { border-color: var(--ember); background: var(--ember-soft); }
 /* =========================================================
-   AI VOICES ON X (right sidebar) — crawled tweets, read-only
+   AI VOICES ON X (right sidebar) — crawled tweets; admin-only add form
    ========================================================= */
 .quote-wall { gap: 14px; }
 .quote-empty {
@@ -1116,6 +1116,68 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--mute);
   font-size: 12px;
 }
+
+.r-add {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--mute);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 140ms;
+}
+.r-add:hover { color: var(--ink); border-color: var(--ink); }
+
+.quote-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--white);
+}
+.quote-name {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink);
+  outline: none;
+}
+.quote-name:focus { border-color: var(--ink); }
+.quote-name::placeholder { color: var(--mute-2); }
+.quote-form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.quote-count {
+  font-size: 10px;
+  color: var(--mute-2);
+}
+.quote-form button {
+  height: 28px;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
+  border: none;
+  background: var(--ember);
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 140ms;
+  flex-shrink: 0;
+}
+.quote-form button:hover { background: var(--ember-hover); }
+.quote-form button:disabled { background: var(--rule); color: var(--mute-2); cursor: not-allowed; }
 
 .quote-list {
   list-style: none;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { FeedClient } from "@/components/FeedClient";
 import { FeedTopbar } from "@/components/FeedTopbar";
+import { isAdminEmail } from "@/lib/admin";
 import { getFeedData } from "@/lib/feed";
 import { getAuthenticatedUser } from "@/lib/supabase/auth-server";
 
@@ -22,7 +23,7 @@ export default async function FeedPage() {
   return (
     <main className="feed-app">
       <FeedTopbar email={user.email || "Member"} />
-      <FeedClient initialData={feedData} />
+      <FeedClient initialData={feedData} isAdmin={isAdminEmail(user.email)} />
     </main>
   );
 }

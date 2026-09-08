@@ -102,6 +102,10 @@ Or locally, without needing the deployment or `CRON_SECRET` at all:
 npm run add:x-quote -- https://x.com/handle/status/1234567890
 ```
 
+### Adding a tweet from the UI (admin-only)
+
+The quote wall itself also has an add form — a "+" button next to "AI Voices on X" — but it only renders, and `POST /api/x-quotes/manual` only accepts requests, for a signed-in user whose email is in `ADMIN_EMAILS` (comma-separated, see [`lib/admin.ts`](./lib/admin.ts)). Everyone else signed in can view the quote wall but not post to it. This is a separate, session-based check from the `CRON_SECRET` bearer-token routes above, which stay open to anyone holding that secret (operator/automation use, not tied to a specific account).
+
 ## Weekly AI Digest
 
 `/api/digest/generate` summarizes everything crawled in the most recently completed ISO week (Mon-Sun, UTC) into one `weekly_digests` row, grouped by category. It is grounded strictly in that week's crawled articles — see [`docs/weekly-ai-digest-plan.md`](./docs/weekly-ai-digest-plan.md) for the full feature scope.

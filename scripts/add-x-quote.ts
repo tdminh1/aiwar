@@ -12,7 +12,7 @@ async function main() {
   }
 
   const result = await addXQuoteFromUrl(url);
-  console.log(`Saved @${result.authorHandle}'s tweet (${result.tweetId}) to x_quotes.`);
+  console.log(`Saved @${result.author_handle}'s tweet (${result.tweet_id}) to x_quotes.`);
 }
 
 main().catch((error) => {

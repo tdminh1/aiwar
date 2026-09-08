@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ExternalLink,
   LayoutGrid,
+  Plus,
   Rows3,
   Search,
   SearchX,
@@ -13,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { DigestPanel } from "@/components/DigestPanel";
 import { SafeImage } from "@/components/SafeImage";
 import { loginPathForCurrentPage } from "@/lib/auth-utils";
@@ -398,62 +399,119 @@ function xQuoteAuthorLabel(quote: XQuote) {
   return quote.author_handle || "ai";
 }
 
-// Read-only — quotes are crawled from lib/x-quotes-config.ts's handle list
-// (see /api/crawl-x-quotes), not submitted by readers.
-function XQuoteWall({ initialQuotes, now }: { initialQuotes: XQuote[]; now: Date }) {
-  if (initialQuotes.length === 0) {
-    return (
-      <div className="r-section quote-wall">
-        <div className="r-head">
-          <h3 className="r-title">AI Voices on X</h3>
-        </div>
-        <p className="quote-empty">No tweets crawled yet. Check back after the next scheduled run.</p>
-      </div>
-    );
+// Quotes are crawled from lib/x-quotes-config.ts's handle list (see
+// /api/crawl-x-quotes) or added by an admin via the form below
+// (/api/x-quotes/manual) — everyone else only views the list, isAdmin
+// controls whether the add form renders at all.
+function XQuoteWall({ initialQuotes, now, isAdmin }: { initialQuotes: XQuote[]; now: Date; isAdmin: boolean }) {
+  const [quotes, setQuotes] = useState<XQuote[]>(initialQuotes);
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const tweetUrl = url.trim();
+    if (!tweetUrl || isSaving) return;
+
+    setIsSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/x-quotes/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: tweetUrl }),
+      });
+      if (redirectExpiredSession(response)) return;
+      const payload = (await response.json().catch(() => null)) as { quote?: XQuote; error?: string } | null;
+
+      if (!response.ok || !payload?.quote) {
+        throw new Error(payload?.error || "Could not add tweet.");
+      }
+
+      const savedQuote = payload.quote;
+      setQuotes((items) => [savedQuote, ...items.filter((item) => item.id !== savedQuote.id)].slice(0, 20));
+      setUrl("");
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add tweet.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
     <div className="r-section quote-wall">
       <div className="r-head">
         <h3 className="r-title">AI Voices on X</h3>
+        {isAdmin ? (
+          <button className="r-add" onClick={() => setOpen((value) => !value)} aria-label="Add tweet">
+            {open ? <X size={12} strokeWidth={2.5} /> : <Plus size={12} strokeWidth={2.5} />}
+          </button>
+        ) : null}
       </div>
 
-      <ul className="quote-list">
-        {initialQuotes.map((quote) => (
-          <li key={quote.id} className="quote-item">
-            <span className="quote-avatar x">
-              {quote.author_avatar_url ? <img src={quote.author_avatar_url} alt={quote.author_handle} /> : "@"}
-            </span>
-            <div>
-              <p className="quote-body">“{quote.text}”</p>
-              <div className="quote-meta">
-                <a className="quote-name-lbl" href={quote.tweet_url} target="_blank" rel="noopener noreferrer">
-                  @{xQuoteAuthorLabel(quote)}
-                </a>
-                {quote.posted_at ? (
-                  <>
-                    <span className="dot-sep">·</span>
-                    <span>{timeAgo(quote.posted_at, now)}</span>
-                  </>
-                ) : null}
+      {isAdmin && open ? (
+        <form className="quote-form" onSubmit={submit}>
+          <input
+            className="quote-name"
+            type="url"
+            placeholder="Paste a tweet URL (x.com/handle/status/...)"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            maxLength={200}
+          />
+          <div className="quote-form-foot">
+            <span className="quote-count">{error || "Uses X's free oEmbed — no API credits spent"}</span>
+            <button type="submit" disabled={!url.trim() || isSaving}>
+              {isSaving ? "Adding" : "Add"}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {quotes.length === 0 ? (
+        <p className="quote-empty">No tweets yet. Check back after the next scheduled run.</p>
+      ) : (
+        <ul className="quote-list">
+          {quotes.map((quote) => (
+            <li key={quote.id} className="quote-item">
+              <span className="quote-avatar x">
+                {quote.author_avatar_url ? <img src={quote.author_avatar_url} alt={quote.author_handle} /> : "@"}
+              </span>
+              <div>
+                <p className="quote-body">“{quote.text}”</p>
+                <div className="quote-meta">
+                  <a className="quote-name-lbl" href={quote.tweet_url} target="_blank" rel="noopener noreferrer">
+                    @{xQuoteAuthorLabel(quote)}
+                  </a>
+                  {quote.posted_at ? (
+                    <>
+                      <span className="dot-sep">·</span>
+                      <span>{timeAgo(quote.posted_at, now)}</span>
+                    </>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
-function RightDiscovery({ xQuotes, now }: { xQuotes: XQuote[]; now: Date }) {
+function RightDiscovery({ xQuotes, now, isAdmin }: { xQuotes: XQuote[]; now: Date; isAdmin: boolean }) {
   return (
     <>
-      <XQuoteWall initialQuotes={xQuotes} now={now} />
+      <XQuoteWall initialQuotes={xQuotes} now={now} isAdmin={isAdmin} />
     </>
   );
 }
 
-export function FeedClient({ initialData }: { initialData: FeedData }) {
+export function FeedClient({ initialData, isAdmin }: { initialData: FeedData; isAdmin: boolean }) {
   const initialNow = useMemo(() => new Date(initialData.renderedAt), [initialData.renderedAt]);
   const [articles, setArticles] = useState<Article[]>(initialData.articles);
   const [articlesTotal, setArticlesTotal] = useState(initialData.articlesTotal);
@@ -645,7 +703,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
         </aside>
 
         <aside className="right-side">
-          <RightDiscovery xQuotes={initialData.xQuotes} now={initialNow} />
+          <RightDiscovery xQuotes={initialData.xQuotes} now={initialNow} isAdmin={isAdmin} />
         </aside>
 
         <main className="feed-col">
@@ -810,7 +868,7 @@ export function FeedClient({ initialData }: { initialData: FeedData }) {
         )}
 
         <div className="mobile-aside">
-          <RightDiscovery xQuotes={initialData.xQuotes} now={initialNow} />
+          <RightDiscovery xQuotes={initialData.xQuotes} now={initialNow} isAdmin={isAdmin} />
         </div>
         </main>
       </div>
