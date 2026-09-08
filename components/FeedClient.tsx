@@ -477,24 +477,28 @@ function XQuoteWall({ initialQuotes, now, isAdmin }: { initialQuotes: XQuote[]; 
       ) : (
         <ul className="quote-list">
           {quotes.map((quote) => (
-            <li key={quote.id} className="quote-item">
-              <span className="quote-avatar x">
-                {quote.author_avatar_url ? <img src={quote.author_avatar_url} alt={quote.author_handle} /> : "@"}
-              </span>
-              <div>
-                <p className="quote-body">“{quote.text}”</p>
-                <div className="quote-meta">
-                  <a className="quote-name-lbl" href={quote.tweet_url} target="_blank" rel="noopener noreferrer">
-                    @{xQuoteAuthorLabel(quote)}
-                  </a>
-                  {quote.posted_at ? (
-                    <>
-                      <span className="dot-sep">·</span>
-                      <span>{timeAgo(quote.posted_at, now)}</span>
-                    </>
-                  ) : null}
+            <li key={quote.id} className="quote-card">
+              <a className="quote-card-link" href={quote.tweet_url} target="_blank" rel="noopener noreferrer">
+                <div className="quote-card-head">
+                  <span className="quote-avatar x">
+                    {quote.author_avatar_url ? (
+                      <img src={quote.author_avatar_url} alt={quote.author_handle} />
+                    ) : (
+                      <span className="quote-avatar-fallback">𝕏</span>
+                    )}
+                  </span>
+                  <span className="quote-card-who">
+                    <strong>{quote.author_name || xQuoteAuthorLabel(quote)}</strong>
+                    <span className="quote-card-handle">@{xQuoteAuthorLabel(quote)}</span>
+                  </span>
+                  {quote.posted_at ? <span className="quote-card-time">{timeAgo(quote.posted_at, now)}</span> : null}
                 </div>
-              </div>
+                <p className="quote-card-body">{quote.text}</p>
+                <span className="quote-card-cta">
+                  View on X
+                  <ExternalLink size={11} />
+                </span>
+              </a>
             </li>
           ))}
         </ul>

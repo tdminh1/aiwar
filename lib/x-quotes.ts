@@ -43,6 +43,14 @@ export type XQuoteHandleSummary = {
   error?: string;
 };
 
+// X attaches a t.co/pic.twitter.com link to the tweet text for any photo,
+// video, or card — neither the API's tweet.text nor the oEmbed blockquote
+// renders the actual media, so the trailing link is just dead text. Strip
+// it so the quote wall doesn't show a raw, non-clickable URL.
+function stripTrailingMediaLink(text: string) {
+  return text.replace(/\s*(?:pic\.twitter\.com|https?:\/\/t\.co)\/\S+$/i, "").trim();
+}
+
 // X's default profile image is a small "_normal" thumbnail — swap it for the
 // 400x400 variant so the quote wall doesn't show a blurry avatar.
 function higherResAvatar(url: string | undefined) {
@@ -123,7 +131,7 @@ export async function runXQuotesCrawl() {
           author_handle: user.username,
           author_name: user.name ?? null,
           author_avatar_url: higherResAvatar(user.profile_image_url),
-          text: tweet.text,
+          text: stripTrailingMediaLink(tweet.text),
           tweet_url: `https://x.com/${user.username}/status/${tweet.id}`,
           posted_at: tweet.created_at ?? null,
           crawled_at: new Date().toISOString(),
@@ -163,7 +171,8 @@ function parseOEmbedHtml(html: string | undefined) {
   if (!html) return { text: null, postedAt: null };
 
   const $ = load(html);
-  const text = $("blockquote p").first().text().replace(/\s+/g, " ").trim() || null;
+  const rawText = $("blockquote p").first().text().replace(/\s+/g, " ").trim();
+  const text = rawText ? stripTrailingMediaLink(rawText) || null : null;
   const dateText = $("blockquote a").last().text().trim();
   const parsedDate = dateText ? new Date(dateText) : null;
   const postedAt = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : null;
