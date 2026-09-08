@@ -2793,65 +2793,6 @@ a.quote-name-lbl:hover { color: var(--ember); }
   font-size: 12px;
 }
 
-/* Teaser card surfaced at the top of the private feed, linking to the
-   latest generated digest. */
-.digest-teaser {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 20px;
-  margin-bottom: 24px;
-  border: 1px solid var(--rule);
-  border-radius: var(--r-card);
-  background: var(--paper-2);
-}
-.digest-teaser-body {
-  display: grid;
-  gap: 2px;
-}
-.digest-teaser-eyebrow {
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ember);
-}
-.digest-teaser-title {
-  font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 700;
-}
-.digest-teaser-summary {
-  color: var(--mute);
-  font-size: 13px;
-}
-.digest-teaser-cta {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 14px;
-  border-radius: var(--r-pill);
-  background: var(--ink);
-  color: var(--white);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-@media (max-width: 620px) {
-  .digest-teaser {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .digest-teaser-cta {
-    width: 100%;
-    justify-content: center;
-  }
-}
 
 /* =========================================================
    WEEKLY DIGEST PANEL (button + slide-in side panel)

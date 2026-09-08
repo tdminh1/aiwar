@@ -131,5 +131,4 @@ export type FeedData = {
   lastCrawledAt: string | null;
   renderedAt: string;
   isConfigured: boolean;
-  latestDigest: WeeklyDigest | null;
 };

@@ -1,7 +1,6 @@
 import "server-only";
 
 import { CATEGORIES } from "@/lib/categories";
-import { getLatestWeeklyDigest } from "@/lib/digest";
 import { createSupabaseServerClient, hasSupabaseServerEnv } from "@/lib/supabase/server";
 import type { Article, FeedData, Source, Topic, XQuote } from "@/lib/types";
 
@@ -16,7 +15,6 @@ const EMPTY_FEED: FeedData = {
   lastCrawledAt: null,
   renderedAt: new Date().toISOString(),
   isConfigured: false,
-  latestDigest: null,
 };
 
 export async function getFeedData(): Promise<FeedData> {
@@ -28,7 +26,7 @@ export async function getFeedData(): Promise<FeedData> {
 
   const supabase = createSupabaseServerClient();
 
-  const [sourcesResult, articlesResult, topicsResult, mostReadResult, xQuotesResult, latestDigest] = await Promise.all([
+  const [sourcesResult, articlesResult, topicsResult, mostReadResult, xQuotesResult] = await Promise.all([
     supabase
       .from("sources")
       .select("*")
@@ -53,7 +51,6 @@ export async function getFeedData(): Promise<FeedData> {
       .select("*")
       .order("posted_at", { ascending: false, nullsFirst: false })
       .limit(20),
-    getLatestWeeklyDigest(),
   ]);
 
   if (sourcesResult.error) throw sourcesResult.error;
@@ -85,6 +82,5 @@ export async function getFeedData(): Promise<FeedData> {
     lastCrawledAt,
     renderedAt,
     isConfigured: true,
-    latestDigest,
   };
 }
